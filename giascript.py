@@ -14,14 +14,14 @@ from amrfile import io as amrio
 from giapy.giaflat import compute_2d_uplift_stage, calc_earth
 
 RUNNAME = '1en3-1-coup'
-DRCTRY = '/data/piggia/'+RUNNAME+'/float2/'
+DRCTRY='/data/piggia/'+RUNNAME+'/float2/'
 PBASENAME = 'plot.pigv5.1km-'+RUNNAME+'.l1l2.2lev.{:06d}.2d.hdf5'
 GBASENAME 'giaarr-findiff.pigv5.1km-'+RUNNAME+'.l1l2.2lev.{:06d}.2d.npy'
 X, Y =  np.linspace(1000, 255000, 128), np.linspace(1000, 383000, 192)
 SHAPE = (192,128)
 
-X, Y = np.linspace(1152500, 2175500, 1024), np.linspace(2048500,3327500,1280)
-SHAPE = (1280, 1024)
+#X, Y = np.linspace(1152500, 2175500, 1024), np.linspace(2048500,3327500,1280)
+#SHAPE = (1280, 1024)
 
 ekwargs = {'u'   :  1e-3,
            'fr23':  1}
