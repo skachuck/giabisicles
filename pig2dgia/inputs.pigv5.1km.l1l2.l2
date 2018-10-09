@@ -24,9 +24,9 @@ temperature.type = LevelData
 
 amr.sigma = 0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
 
-inputLevelData.geometryFile = pig-bisicles-1km.2d.hdf5
-inputLevelData.frictionFile = pig-bisicles-1km.2d.hdf5
-inputLevelData.temperatureFile = pig-bisicles-1km.2d.hdf5
+inputLevelData.geometryFile = /home/skachuck/work/giabisicles/pig2dgia/pig-bisicles-1km.2d.hdf5
+inputLevelData.frictionFile = /home/skachuck/work/giabisicles/pig2dgia/pig-bisicles-1km.2d.hdf5
+inputLevelData.temperatureFile = /home/skachuck/work/giabisicles/pig2dgia/pig-bisicles-1km.2d.hdf5
 inputLevelData.thicknessName = thk
 inputLevelData.topographyName = topg
 inputLevelData.frictionName = beta
@@ -52,7 +52,7 @@ basalFlux.floating.ordinates = 0 -50.0
 
 #Introduce the GIA
 topographyFlux.type = pythonFlux
-topographyFlux.module = script
+topographyFlux.module = piggia
 topographyFlux.function = gia2_surface_flux_findiff
 topographyFlux.n_kwargs = 5
 
@@ -104,13 +104,13 @@ amr.time_step_ticks = 1
 #plotting options
 amr.plot_interval = 1
 #amr.plot_time_interval = 1.0
-amr.plot_prefix = /data/piggia/1en3-1-coup/float3/plot.pigv5.1km-1en3-1-coup.l1l2.2lev.
+amr.plot_prefix = plot.pigv5.1km.l1l2.2lev.
 #amr.write_preSolve_plotfiles = true
 amr.write_solver_rhs = 1
 
 #check points
 amr.check_interval = 10
-amr.check_prefix = /data/piggia/1en3-1-coup/float3/chk.pigv5.1km-1en3-1-coup.l1l2.2lev.
+amr.check_prefix = chk.pigv5.1km.l1l2.2lev.
 amr.check_overwrite = 0
 amr.verbosity = 5
 
@@ -123,7 +123,7 @@ amr.blockFactor = 8      # block factor used in grid generation
 amr.fill_ratio = 0.85    # how efficient are the grids
 amr.nestingRadius = 1    # proper nesting radius required
 amr.tags_grow = 4        # amount to buffer tags
-amr.tagSubsetBoxesFile = tag_subset.pigv5
+amr.tagSubsetBoxesFile = /home/skachuck/work/giabisicles/pig2dgia/tag_subset.pigv5
 amr.tagCap = 1
 
 amr.interpolate_zb = 0 #go back to the IBC to regrid geometry
@@ -140,52 +140,3 @@ amr.grounding_line_tagging_min_vel = 20
 
 #misc options
 amr.verbosity = 5
-#    main.maxTime = 0 #we don't want time dependence, yet
-#
-#    amr.velocity_solver_type = 6 # Inverse problem !
-#    control.velMisfitType = speed # match observed speed (not velocity)
-#    
-#    #field of data expressing confidence in speed observations. 0 for no confidence
-#    control.velCoef.type = LevelData
-#    control.velCoef.fileFormat = pig-bisicles-1km.2d.hdf5
-#    control.velCoef.name = velc
-#    control.velCoef.n = 1
-#
-#    #x-component of the observed velocity (could be the speed if the y-component is zero)
-#    control.xVel.type = LevelData
-#    control.xVel.fileFormat = pig-bisicles-1km.2d.hdf5
-#    control.xVel.name = xvel
-#    control.xVel.n = 1
-#
-#    #y-component of the observed velocity (could be the speed if the x-component is zero))
-#    control.yVel.type = LevelData
-#    control.yVel.fileFormat = pig-bisicles-1km.2d.hdf5
-#    control.yVel.name = yvel
-#    control.yVel.n = 1
-#
-#    #Tikhonov regularization coefficients
-#    control.gradCsqRegularization = 1.0e+4
-#    control.gradMuCoefsqRegularization = 1.0e+10
-#
-#    #some box constraints. 
-#    control.boundMethod = Projection
-#    control.lowerX0 = -5
-#    control.upperX0 = 5.0
-#    control.lowerX1 = -2.0
-#    control.upperX1 = 0.5
-#    
-#    control.writeInnerSteps = false
-#    control.CGmaxIter = 24
-#    control.CGhang = 0.95
-#
-#    control.minLevelForOptimization = 2 # refine to level 2 based on the observed speed, then optmize
-#
-##refine generously in ice streams
-#amr.tag_vel_dx = true
-#amr.vel_dx_tagging_val = 5.0e+5 # refine 500 m/a regions to 1 km    
-#amr.vel_dx_finest_level_grounded = 2
-#amr.vel_dx_finest_level_floating = 1
-#
-##tag thin submarine cavities in an attempt to refine around pinning points
-#amr.tag_thin_cavity = true
-#amr.tag_thin_cavity_thickness = 50.0

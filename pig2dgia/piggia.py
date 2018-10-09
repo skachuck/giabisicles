@@ -11,13 +11,13 @@ from scipy.interpolate import RectBivariateSpline
 
 from amrfile import io as amrio
 
-from giapy.giaflat import compute_2d_uplift_stage, calc_earth
+from giapy.giaflat import compute_2d_uplift_stage
 
-RUNNAME = '1en3-1-coup'
-DRCTRY = '/data/piggia/'+RUNNAME+'/float2/'
+RUNNAME = '1en3float'
+DRCTRY = '/data/piggia/'+RUNNAME+'/'
 
 ekwargs = {'u'   :  1e-3,
-           'fr23':  1}
+           'fr23':  1.}
 
 
 def extract_field(amrID, field='thickness', level=0, order=0, returnxy=False):
@@ -58,7 +58,7 @@ class PIG_2D_BISICLES_Ice(object):
 
     def get_ice_times(self):
         times = []
-        for f in self.names:
+        for f in self.fnames:
             try:
                 amrID = amrio.load(self.drctry+f)
             except:
@@ -115,8 +115,8 @@ class gia2_surface_flux_object(object):
         self.xg = np.linspace(1000, 255000, 128)
         self.yg = np.linspace(1000, 383000, 192) 
         self.drctry = DRCTRY
-        pbasename ='plot.pigv5.1km-'+RUNNAME+'.l1l2.2lev.{:06d}.2d.hdf5'
-        gbasename = 'giaarr-findiff.pigv5.1km-'+RUNNAME+'.l1l2.2lev.{:06d}.2d.npy'
+        pbasename ='plot.pigv5.1km.l1l2.2lev.{:06d}.2d.hdf5'
+        gbasename = 'giaarr-findiff.pigv5.1km.l1l2.2lev.{:06d}.2d.npy'
         self.gfname = self.drctry+gbasename
         self.pfname = self.drctry+pbasename
 
