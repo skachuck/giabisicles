@@ -181,7 +181,7 @@ class gia2_surface_flux_object(object):
         self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
         self.t = t
 
-class gia2_surface_flux_object_fixeddt(object):
+class gia2_surface_flux_fixeddt_object(object):
     def __init__(self, rate=False):
         self.xg = np.linspace(1000, 255000, 128)
         self.yg = np.linspace(1000, 383000, 192) 
