@@ -5,19 +5,23 @@ Date: August 8, 2018
 Computing and (offline) coupling for giapy and BISICLES PIG example.
 """
 
-import os
+import os, time
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
 from amrfile import io as amrio
 
-from giapy.giaflat import compute_2d_uplift_stage
+from giapy.giaflat import compute_2d_uplift_stage, calc_earth
 
 RUNNAME = '1en3float'
 DRCTRY = '/data/piggia/'+RUNNAME+'/'
+TMAX = 75
+DT = 0.03125
 
 ekwargs = {'u'   :  1e-3,
            'fr23':  1.}
+
+TAUS, ELUP, ALPHA = calc_earth(nx=128, ny=192, dx=2, dy=2, **ekwargs)
 
 
 def extract_field(amrID, field='thickness', level=0, order=0, returnxy=False):
@@ -42,6 +46,9 @@ class PIG_2D_BISICLES_Ice(object):
         self.readkwargs={}
 
         self.update_flist()
+
+    def __getitem__(self, key):
+        return self.read_icestage(self.fnames[key])
 
     def update_flist(self):
         # List of all output files, following basename
@@ -174,4 +181,114 @@ class gia2_surface_flux_object(object):
         self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
         self.t = t
 
-gia2_surface_flux_findiff = gia2_surface_flux_object()
+class gia2_surface_flux_object_fixeddt(object):
+    def __init__(self, rate=False):
+        self.xg = np.linspace(1000, 255000, 128)
+        self.yg = np.linspace(1000, 383000, 192) 
+        self.drctry = DRCTRY
+        pbasename ='plot.pigv5.1km.l1l2.2lev.{:06d}.2d.hdf5'
+        gbasename = 'giaarr-findiff.pigv5.1km.l1l2.2lev.{:06d}.2d.npy'
+        self.gfname = self.drctry+gbasename
+        self.pfname = self.drctry+pbasename
+
+        self.rate = rate
+
+        self.t = 0
+        self.uplift = np.zeros((int(TMAX/DT), 192, 128))
+        self.ts = np.linspace(0, TMAX, TMAX/DT+1) 
+        self.update_interp(0)
+
+    def __call__(self, x, y, t, thck, topg, *args, **kwargs):
+
+        if not t == self.t:
+            self.update_interp(t)
+    
+        # Interpolate to x,y
+        uplrate = float(self.uplinterp.ev(x,y))
+    
+        # Return
+        return uplrate
+
+    def update_interp(self,t): 
+        if t == 0: 
+            if not os.path.exists(self.gfname.format(0)):
+
+
+                self.uplinterp = RectBivariateSpline(self.xg, self.yg,
+                                                        self.uplift[0])
+                return
+            else:
+                self.uplinterp = RectBivariateSpline(self.xg, self.yg,
+                                np.load(self.gfname.format(0)).T)
+                return
+
+        tstep = int(t/DT)
+
+        # Check if uplrate at t has already been computed
+        if os.path.exists(self.gfname.format(tstep)):
+           # If so, load the array
+            self.uplift = np.load(self.gfname.format(tstep))
+        else:
+            
+            amrID = amrio.load(self.pfname.format(tstep))
+            thk1 = extract_field(amrID, 'thickness')
+            bas1 = extract_field(amrID, 'Z_base')
+            amrio.free(amrID)
+
+            amrID = amrio.load(self.pfname.format(tstep - 1))
+            thk0 = extract_field(amrID, 'thickness')
+            bas0 = extract_field(amrID, 'Z_base')
+            amrio.free(amrID)
+
+            dLoad = (thickness_above_floating(thk1, bas1) - 
+                        thickness_above_floating(thk0, bas0))
+
+            propagate_2d_adjustment(t, dLoad, tstep)
+
+            uplrate = (self.uplift[tstep] - self.uplift[tstep-1])/DT
+
+
+        self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
+        self.t = t
+
+        if tstep % 10 == 0:
+            np.save(self.gfname.format(tstep), self.uplift)
+
+    def propagate_2d_adjustment(t, dLoad, tstep, **ekwargs):
+        """
+        Propagate the effect of dLoad at t to future times in self.times.
+        """
+        
+        # A factor for padding the FFT space
+        padfac = 1
+        nx, ny = 128, 192
+        # A dload array, for padding and multiplying over more dims.
+        dload = np.zeros((1, ny*padfac, nx*padfac))
+        padsl = np.s_[..., 0:ny, 0:nx]
+        dload[padsl] = dLoad
+
+        # Fourier transform the laod.
+        dload_f = np.fft.fft2(dload)
+        # Compute the duration of dLoad from t to future times, with some
+        # hackery for array slicing.
+        durs = (self.times[1:,None,None] if tstep == 0 
+                else self.times[1:-tstep,None,None])
+        # Construct the array of unit responses.
+        unit_resp = -(1 - np.exp(durs/TAUS*ALPHA/1000))
+        # Propagate response to current and future times and transform back.
+        self.uplift[tstep:] += np.real(0.3*np.fft.ifft2(unit_resp/ALPHA*dload_f))
+        # Add elastic uplift off lithosphere.
+        self.uplift[tstep:] += np.real(0.3*np.fft.ifft2((1-1./ALPHA)*ELUP*dload_f[0])) 
+
+def thickness_above_floating(thk, bas, beta=0.9):
+    """Compute the (water equivalent) thickness above floating.
+
+    thk - ice thickness
+    bas - topography
+    beta - ratio of ice density to water density (defauly=0.9)
+    """
+    #   Segment over ocean, checks for flotation    Over land
+    taf = (beta*thk+bas)*(beta*thk>-bas)*(bas<0) + beta*thk*(bas>0)
+    return taf
+
+gia2_surface_flux_findiff = gia2_surface_flux_fixeddt_object()
