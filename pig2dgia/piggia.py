@@ -13,13 +13,13 @@ from amrfile import io as amrio
 
 from giapy.giaflat import compute_2d_uplift_stage, calc_earth
 
-RUNNAME = '1en3float'
+RUNNAME = 'fixdttest'
 DRCTRY = '/data/piggia/'+RUNNAME+'/'
 TMAX = 75
 DT = 0.03125
 
-ekwargs = {'u'   :  1e-3,
-           'fr23':  1.}
+ekwargs = {'u'   :  4e-3,
+           'fr23':  20.}
 
 TAUS, ELUP, ALPHA = calc_earth(nx=128, ny=192, dx=2, dy=2, **ekwargs)
 
@@ -195,7 +195,7 @@ class gia2_surface_flux_fixeddt_object(object):
 
         self.t = 0
         self.uplift = np.zeros((int(TMAX/DT), 192, 128))
-        self.ts = np.linspace(0, TMAX, TMAX/DT+1) 
+        self.ts = np.linspace(0, TMAX, TMAX/DT+1)  
         self.update_interp(0)
 
     def __call__(self, x, y, t, thck, topg, *args, **kwargs):
@@ -215,7 +215,7 @@ class gia2_surface_flux_fixeddt_object(object):
 
 
                 self.uplinterp = RectBivariateSpline(self.xg, self.yg,
-                                                        self.uplift[0])
+                                                        self.uplift[0].T)
                 return
             else:
                 self.uplinterp = RectBivariateSpline(self.xg, self.yg,
@@ -225,7 +225,7 @@ class gia2_surface_flux_fixeddt_object(object):
         tstep = int(t/DT)
 
         # Check if uplrate at t has already been computed
-        if os.path.exists(self.gfname.format(tstep)):
+        if False:#os.path.exists(self.gfname.format(tstep)):
            # If so, load the array
             self.uplift = np.load(self.gfname.format(tstep))
         else:
@@ -243,10 +243,11 @@ class gia2_surface_flux_fixeddt_object(object):
             dLoad = (thickness_above_floating(thk1, bas1) - 
                         thickness_above_floating(thk0, bas0))
 
-            propagate_2d_adjustment(t, dLoad, tstep)
+            self.propagate_2d_adjustment(t, dLoad, tstep)
 
-            uplrate = (self.uplift[tstep] - self.uplift[tstep-1])/DT
-
+        uplrate = (self.uplift[tstep] - self.uplift[tstep-1])/DT
+        print self.uplift.shape
+        print uplrate.shape
 
         self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
         self.t = t
@@ -254,7 +255,7 @@ class gia2_surface_flux_fixeddt_object(object):
         if tstep % 10 == 0:
             np.save(self.gfname.format(tstep), self.uplift)
 
-    def propagate_2d_adjustment(t, dLoad, tstep, **ekwargs):
+    def propagate_2d_adjustment(self, t, dLoad, tstep):
         """
         Propagate the effect of dLoad at t to future times in self.times.
         """
@@ -271,8 +272,8 @@ class gia2_surface_flux_fixeddt_object(object):
         dload_f = np.fft.fft2(dload)
         # Compute the duration of dLoad from t to future times, with some
         # hackery for array slicing.
-        durs = (self.times[1:,None,None] if tstep == 0 
-                else self.times[1:-tstep,None,None])
+        durs = (self.ts[1:,None,None] if tstep == 0 
+                else self.ts[1:-tstep,None,None])
         # Construct the array of unit responses.
         unit_resp = -(1 - np.exp(durs/TAUS*ALPHA/1000))
         # Propagate response to current and future times and transform back.
