@@ -3,3 +3,7 @@
 *.hdf5
 *.ipynb
 figs/
+pout*
+sout*
+err*
+*.out
