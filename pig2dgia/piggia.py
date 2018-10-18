@@ -7,19 +7,19 @@ Computing and (offline) coupling for giapy and BISICLES PIG example.
 
 import os, time
 import numpy as np
-from scipy.interpolate import RectBivariateSpline
+#from scipy.interpolate import RectBivariateSpline
 
 from amrfile import io as amrio
 
 from giapy.giaflat import compute_2d_uplift_stage, calc_earth
 
-RUNNAME = 'fixdttest'
+RUNNAME = '4en3-1a'
 DRCTRY = '/data/piggia/'+RUNNAME+'/'
 TMAX = 75
 DT = 0.03125
 
-ekwargs = {'u'   :  4e-3,
-           'fr23':  20.}
+ekwargs = {'u'   :  1e-3,
+           'fr23':  1.}
 
 TAUS, ELUP, ALPHA = calc_earth(nx=128, ny=192, dx=2, dy=2, **ekwargs)
 
@@ -117,69 +117,69 @@ def get_time_from_plot_file(fname):
     amrio.free(amrID)
     return t
 
-class gia2_surface_flux_object(object):
-    def __init__(self, rate=False):
-        self.xg = np.linspace(1000, 255000, 128)
-        self.yg = np.linspace(1000, 383000, 192) 
-        self.drctry = DRCTRY
-        pbasename ='plot.pigv5.1km.l1l2.2lev.{:06d}.2d.hdf5'
-        gbasename = 'giaarr-findiff.pigv5.1km.l1l2.2lev.{:06d}.2d.npy'
-        self.gfname = self.drctry+gbasename
-        self.pfname = self.drctry+pbasename
-
-        self.rate = rate
-
-        self.t = 0
-        self.update_interp(0)
-
-    def __call__(self, x, y, t, thck, topg, *args, **kwargs):
-
-        if not t == self.t:
-            self.update_interp(t)
-    
-        # Interpolate to x,y
-        uplrate = float(self.uplinterp.ev(x,y))
-    
-        # Return
-        return uplrate
-
-    def update_interp(self,t): 
-        if t == 0: 
-            if not os.path.exists(self.gfname.format(0)):
-                zeroupl = np.zeros((192, 128))
-                np.save(self.gfname.format(0), zeroupl)
-                self.uplinterp = RectBivariateSpline(self.xg, self.yg, zeroupl.T)
-                return
-            else:
-                self.uplinterp = RectBivariateSpline(self.xg, self.yg,
-                                np.load(self.gfname.format(0)).T)
-                return
-
-        tstep = get_latest_plot_file(self.drctry, 'plot')
-
-        # Check if uplrate at t has already been computed
-        if os.path.exists(self.gfname.format(tstep)):
-           # If so, load the array
-            uplarr1 = np.load(self.gfname.format(tstep))
-        else:
-           # If not, compute it, make and save the array
-            ice = PIG_2D_BISICLES_Ice(drctry=self.drctry, basename='plot')
-            #assert ice.times[-1] == t, 'Time {} inconsistent with {}'.format(t, ice.times[-1])
-            uplarr1 = compute_2d_uplift_stage(t, ice, 2, 2, self.rate,
-                                                    **ekwargs)
-            np.save(self.gfname.format(tstep), uplarr1)
-        # If using finite difference, load previous stage and difference.
-        if not self.rate:
-            # Load previous step
-            uplarr0 = np.load(self.gfname.format(tstep-1))
-            t0 = get_time_from_plot_file(self.pfname.format(tstep-1))
-            uplrate = ((uplarr1-uplarr0)/(t-t0))
-        else:
-            uplrate = uplarr1
-    
-        # Make the interpolation object
-        self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
-        self.t = t
+#class gia2_surface_flux_object(object):
+#    def __init__(self, rate=False):
+#        self.xg = np.linspace(1000, 255000, 128)
+#        self.yg = np.linspace(1000, 383000, 192) 
+#        self.drctry = DRCTRY
+#        pbasename ='plot.pigv5.1km.l1l2.2lev.{:06d}.2d.hdf5'
+#        gbasename = 'giaarr-findiff.pigv5.1km.l1l2.2lev.{:06d}.2d.npy'
+#        self.gfname = self.drctry+gbasename
+#        self.pfname = self.drctry+pbasename
+#
+#        self.rate = rate
+#
+#        self.t = 0
+#        self.update_interp(0)
+#
+#    def __call__(self, x, y, t, thck, topg, *args, **kwargs):
+#
+#        if not t == self.t:
+#            self.update_interp(t)
+#    
+#        # Interpolate to x,y
+#        uplrate = float(self.uplinterp.ev(x,y))
+#    
+#        # Return
+#        return uplrate
+#
+#    def update_interp(self,t): 
+#        if t == 0: 
+#            if not os.path.exists(self.gfname.format(0)):
+#                zeroupl = np.zeros((192, 128))
+#                np.save(self.gfname.format(0), zeroupl)
+#                self.uplinterp = RectBivariateSpline(self.xg, self.yg, zeroupl.T)
+#                return
+#            else:
+#                self.uplinterp = RectBivariateSpline(self.xg, self.yg,
+#                                np.load(self.gfname.format(0)).T)
+#                return
+#
+#        tstep = get_latest_plot_file(self.drctry, 'plot')
+#
+#        # Check if uplrate at t has already been computed
+#        if os.path.exists(self.gfname.format(tstep)):
+#           # If so, load the array
+#            uplarr1 = np.load(self.gfname.format(tstep))
+#        else:
+#           # If not, compute it, make and save the array
+#            ice = PIG_2D_BISICLES_Ice(drctry=self.drctry, basename='plot')
+#            #assert ice.times[-1] == t, 'Time {} inconsistent with {}'.format(t, ice.times[-1])
+#            uplarr1 = compute_2d_uplift_stage(t, ice, 2, 2, self.rate,
+#                                                    **ekwargs)
+#            np.save(self.gfname.format(tstep), uplarr1)
+#        # If using finite difference, load previous stage and difference.
+#        if not self.rate:
+#            # Load previous step
+#            uplarr0 = np.load(self.gfname.format(tstep-1))
+#            t0 = get_time_from_plot_file(self.pfname.format(tstep-1))
+#            uplrate = ((uplarr1-uplarr0)/(t-t0))
+#        else:
+#            uplrate = uplarr1
+#    
+#        # Make the interpolation object
+#        #self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
+#        self.t = t
 
 class gia2_surface_flux_fixeddt_object(object):
     def __init__(self, rate=False):
@@ -195,7 +195,7 @@ class gia2_surface_flux_fixeddt_object(object):
 
         self.t = 0
         self.uplift = np.zeros((int(TMAX/DT), 192, 128))
-        self.ts = np.linspace(0, TMAX, TMAX/DT+1)  
+        self.ts = np.linspace(0, TMAX, int(TMAX/DT+1))
         self.update_interp(0)
 
     def __call__(self, x, y, t, thck, topg, *args, **kwargs):
@@ -203,8 +203,12 @@ class gia2_surface_flux_fixeddt_object(object):
         if not t == self.t:
             self.update_interp(t)
     
+        xind = int((x - 1000)/2000)
+        yind = int((y - 1000)/2000)
+
         # Interpolate to x,y
-        uplrate = float(self.uplinterp.ev(x,y))
+        #uplrate = float(self.uplinterp.ev(x,y))
+        uplrate = float(self.uplinterp[yind, xind])
     
         # Return
         return uplrate
@@ -214,18 +218,20 @@ class gia2_surface_flux_fixeddt_object(object):
             if not os.path.exists(self.gfname.format(0)):
 
 
-                self.uplinterp = RectBivariateSpline(self.xg, self.yg,
-                                                        self.uplift[0].T)
+                #self.uplinterp = RectBivariateSpline(self.xg, self.yg,
+                #                                        self.uplift[0].T)
+                self.uplinterp = self.uplift[0]
                 return
             else:
-                self.uplinterp = RectBivariateSpline(self.xg, self.yg,
-                                np.load(self.gfname.format(0)).T)
+                #self.uplinterp = RectBivariateSpline(self.xg, self.yg,
+                #                np.load(self.gfname.format(0)).T)
+                self.uplinterp = np.load(self.gfname.format(0))
                 return
 
         tstep = int(t/DT)
 
         # Check if uplrate at t has already been computed
-        if False:#os.path.exists(self.gfname.format(tstep)):
+        if os.path.exists(self.gfname.format(tstep)):
            # If so, load the array
             self.uplift = np.load(self.gfname.format(tstep))
         else:
@@ -246,10 +252,9 @@ class gia2_surface_flux_fixeddt_object(object):
             self.propagate_2d_adjustment(t, dLoad, tstep)
 
         uplrate = (self.uplift[tstep] - self.uplift[tstep-1])/DT
-        print self.uplift.shape
-        print uplrate.shape
 
-        self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
+        #self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
+        self.uplinterp = uplrate
         self.t = t
 
         if tstep % 10 == 0:
@@ -292,4 +297,63 @@ def thickness_above_floating(thk, bas, beta=0.9):
     taf = (beta*thk+bas)*(beta*thk>-bas)*(bas<0) + beta*thk*(bas>0)
     return taf
 
+def calc_earth(nx,ny,dx,dy,return_freq=False,**kwargs):
+    """Compute the decay constants, elastic uplift, and lithosphere filter.
+
+    Parameters
+    ----------
+    nx, ny : int
+        Shape of flat earth grid.
+    dx, dy : float
+        Grid spacing.
+    
+    Returns
+    -------
+
+    """ 
+    freqx = np.fft.fftfreq(nx, dx)
+    freqy = np.fft.fftfreq(ny, dx)
+    freq = 2*pi*np.sqrt(freqx[None,:]**2 + freqy[:,None]**2)
+
+    u = kwargs.get('u', 1e0)
+    u1 = kwargs.get('u1', None)
+    u2 = kwargs.get('u2', None)
+    h = kwargs.get('h', None)
+    g = kwargs.get('g', 9.8)
+    rho = kwargs.get('rho', 3313)
+    mu = kwargs.get('mu', 26.6)
+    fr23 = kwargs.get('fr23', 1.)
+
+    # Error catching. For two viscous layers, u1, u2, and u3 must be set.
+    assert (u1 is not None) == (u2 is not None) == (h is not None), 'Two layer model must have u1 and u2 set.'
+
+    if u1 is not None:
+        # Cathles (1975) III-21
+        c = np.cosh(freq*h)
+        s = np.sinh(freq*h)
+        ur = u2/u1
+        ui = 1./ur
+        r = 2*c*s*ur + (1-ur**2)*(freq*h)**2 + ((ur*s)**2+c**2)
+        r = r/((ur+ui)*s*c + freq*h*(ur-ui) + (s**2+c**2))
+
+        u = u1
+
+    else:
+        r = 1
+
+
+    # taus is in kyr
+    taus = -2*u*np.abs(freq/g/rho * 1e8/np.pi)*r
+
+    # elup is in m
+    elup = -rho*g/2/mu/freq*1e-6
+    elup[0,0] = 0
+
+    # alpha is dimensionless
+    alpha = 1 + freq**4*fr23/g/rho*1e11
+
+    if return_freq:
+        return freq, taus, elup, alpha
+    else:
+        return taus, elup, alpha
 gia2_surface_flux_findiff = gia2_surface_flux_fixeddt_object()
