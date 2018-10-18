@@ -6,7 +6,7 @@ export RUNDIR=`pwd`
 export JOBNAME=$2
 export INFILEBASE=$1
 
-if [-n $3]; then
+if [ -n $3 ]; then
     export JOBDIR=$3
 else
     export JOBDIR=./
@@ -42,4 +42,4 @@ VER=$(getsvnver $BISICLES_HOME/BISICLES)
 echo "# BISICLES REVISION: $VER" >> $INFILE 
 echo "" >> $INFILE
 
-PYTHONPATH=./:$RUNDIR:$PYTHONPATH nohup mpirun -np 4 $DRIVER $INFILE > sout.0 &> err.0
+PYTHONPATH=./:$RUNDIR:$PYTHONPATH nohup mpirun -np 4 $DRIVER $INFILE > sout.0 &> err.0 
