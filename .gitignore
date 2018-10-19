@@ -3,3 +3,4 @@
 *.hdf5
 *.ipynb
 figs/
+results

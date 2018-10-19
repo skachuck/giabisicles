@@ -13,13 +13,19 @@ from amrfile import io as amrio
 
 from giapy.giaflat import compute_2d_uplift_stage, calc_earth
 
-RUNNAME = '4en3-1a'
+RUNNAME = 'best2'
 DRCTRY = '/data/piggia/'+RUNNAME+'/'
 TMAX = 75
 DT = 0.03125
 
-ekwargs = {'u'   :  1e-3,
-           'fr23':  1.}
+#ekwargs = {'u'   :  1e0,
+#           'fr23':  1.}
+
+# 'Best 2' from Barletta et al., 2018
+ekwargs = {'u1'  :  4e-3,
+           'u2'  :  2e-2,
+           'h'   :  200.,
+           'fr23':  20.}
 
 TAUS, ELUP, ALPHA = calc_earth(nx=128, ny=192, dx=2, dy=2, **ekwargs)
 
