@@ -4,3 +4,7 @@
 *.ipynb
 figs/
 results
+pout*
+sout*
+err*
+*.out
