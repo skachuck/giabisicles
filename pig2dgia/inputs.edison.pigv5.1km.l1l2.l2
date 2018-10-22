@@ -140,3 +140,5 @@ amr.grounding_line_tagging_min_vel = 20
 
 #misc options
 amr.verbosity = 5
+
+amr.fixed_dt = 0.03125
