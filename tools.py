@@ -1,10 +1,39 @@
 from __future__ import division
 import numpy as np
 import os
+import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
 
 import giapy.plot_tools.interp_path
 from amrfile import io as amrio
 from giapy.giaflat import thickness_above_floating
+from intersection import intersection
+
+def gen_basemap():
+    """Generate the standard projection."""
+    m = Basemap(resolution='i',projection='spstere',\
+                lat_ts=-71,lon_0=180, boundinglat=-64, ellps='WGS84')
+    return m
+
+def pig2proj(x, y, xmin=-5905823.470038407, xmax=0,
+                    ymin=-5905823.470038407,ymax=0, 
+                    xoff=1707000, yoff=384000):
+    """Transform coordinates for Pine Island Glacier example to the standard
+    projection coordinates."""
+    return -x-0.5*(xmax-xmin)+xoff, -y-0.5*(ymax-ymin)+yoff
+
+def genpigplot(m, xs, ys):
+    xmin=-xs.max()+0.5*m.xmin+1707000
+    ymin=ys.max()
+    xmax=xs.min()
+    ymax=ys.min()
+
+    fig, ax = plt.subplots(1,1)
+    ax.set_xlim(xmin,xmax)
+    ax.set_ylim(ymin,ymax)
+
+    return plt.gca()
+
 
 def get_fnames(outpath, basename='plot'):
     # List of all output files, following basename
@@ -52,7 +81,7 @@ def collect_field(fnames, field_name, outpath='./'):
     return np.array(flist)
 
 
-def intersect_grounding_and_center(fnames, centerline):
+def intersect_grounding_and_center(fnames, centerline, outpath='./'):
     """
     Finds the intersection between the grounding lines in fnames and a
     centerline, using the intersection tool from Sukhbinder Singh.
@@ -62,12 +91,13 @@ def intersect_grounding_and_center(fnames, centerline):
 
     for f in fnames:
         amrID = amrio.load(outpath+f)
+        lo,hi = amrio.queryDomainCorners(amrID, 0)
         xh,yh,bas = amrio.readBox2D(amrID, 0, lo, hi, "Z_base", 0)
         xh,yh,bot = amrio.readBox2D(amrID, 0, lo, hi, "Z_bottom", 0)
 
         p = plt.contour(xh, yh, np.abs(bas-bot), levels=[0.1], colors='r');
         glx, gly = p.allsegs[0][0].T
-        xint, yint = intersection(glx, gly, centerline.xs, centerline.ys)
+        xint, yint = intersection.intersection(glx, gly, centerline.xs, centerline.ys)
         xints.append(xint)
         yints.append(yint)
         ts.append(amrio.queryTime(amrID))
