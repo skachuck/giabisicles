@@ -13,13 +13,15 @@ from amrfile import io as amrio
 
 from giapy.giaflat import compute_2d_uplift_stage, calc_earth
 
-RUNNAME = '4en3-1a'
+RUNNAME = '4en3-20a'
 DRCTRY = '/data/piggia/'+RUNNAME+'/'
+if 'edison' in os.uname()[1]:
+	DRCTRY = '/scratch2/scratchdirs/skachuck/piggia/'+RUNNAME+'/'
 TMAX = 75
 DT = 0.03125
 
-ekwargs = {'u'   :  1e-3,
-           'fr23':  1.}
+ekwargs = {'u'   :  4e-3,
+           'fr23':  20.}
 
 TAUS, ELUP, ALPHA = calc_earth(nx=128, ny=192, dx=2, dy=2, **ekwargs)
 
