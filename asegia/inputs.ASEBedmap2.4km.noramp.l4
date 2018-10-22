@@ -1,0 +1,239 @@
+#-------------  inputs file for Amr ice-sheet solver --------------
+# --------------- input options set by the script -----------------
+
+#main.poutBaseName = pout.ASEBedmap2
+#amr.restart_file = ../step0/chk.Ant-500m.initial.2d.hdf5
+#amr.restart_file = chk.ASE-Bedmap2.a5.l1l2.4lev.005950.2d.hdf5 #was chk.ASE-Bedmap2.1km.l1l2.4lev.005950.2d.hdf5
+amr.plot_prefix = /global/homes/s/skachuck/giabisicles/asegia/raw/plot.ASE.Bedmap2.4km.l1l2.4lev. #was plot.ASE.Bedmap2.1km.l1l2.4lev.
+amr.check_prefix = /global/homes/s/skachuck/giabisicles/asegia/raw/chk.ASE-Bedmap2.4km.l1l2.4lev. # was chk.ASE-Bedmap2.1km.l1l2.4lev.
+amr.maxLevel = 4
+
+amr.eliminate_remote_ice_after_regrid = 1
+amr.eliminate_remote_ice = 1
+ 
+#hold ice shelves fixed thickness
+#amr.floating_ice_stable = 1
+
+#amr.restart_step=0
+#amr.restart_time = 0.0
+#amr.restart_file = chk.ASE-Bedmap2.4km.l1l2.4lev.019840.2d.hdf5
+
+# ------- input options below here are kept constant across runs --------
+
+#time stepping
+main.maxTime = 260 # maximum time to run to 
+main.maxStep = 1000000000  # maximum number of steps to runx
+#main.maxStep = 3
+
+#input data
+geometry.problem_type = LevelData
+inputLevelData.geometryFile = /global/project/projectdirs/iceocean/bisiclesData/ASE/THW_setup/B2_data_files/ASEBedmap-geometry-1km.2d.hdf5
+inputLevelData.thicknessName = thk
+inputLevelData.topographyName = topg
+
+geometry.beta_type = MultiLevelData
+inputLevelData.frictionFile = /global/project/projectdirs/iceocean/bisiclesData/ASE/THW_setup/B2_data_files/ASEBedmap2-1kmbase-ctrl-4lev-outer.000032.2d.hdf5
+inputLevelData.frictionName = C
+
+muCoefficient.type = MultiLevelData
+inputLevelData.muCoefFile = /global/project/projectdirs/iceocean/bisiclesData/ASE/THW_setup/B2_data_files/ASEBedmap2-1kmbase-ctrl-4lev-outer.000032.2d.hdf5
+inputLevelData.muCoefName = muCoef
+
+temperature.type = LevelData
+inputLevelData.temperatureFile = /global/project/projectdirs/iceocean/bisiclesData/ASE/THW_setup/B2_data_files/ASEBedmap-temperature-4km.2d.hdf5
+inputLevelData.temperatureName = temp000000
+
+## CISM uses 2 ghost cells
+#glimmerInterface.numGhost = 2 2 
+## current setup is cell-centered for thickness                        
+#glimmerInterface.nodalInitialData = 0
+
+
+#bulk constitutive relation and parameters
+main.constitutiveRelation = L1L2
+main.rateFactor = arrheniusRate
+ArrheniusRate.epsSqr0 = 1.0e-12
+
+#main.rateFactor = patersonRate
+#patersonRate.epsSqr0 = 1.0e-12
+
+
+#basal friction relation parameters
+main.basalFrictionRelation = powerLaw
+BasalFrictionPowerLaw.m = 1.0
+
+constants.ice_density=918
+
+#surface fluxes
+#surfaceFlux.type = zeroFlux
+surfaceFlux.type = LevelData
+surfaceFlux.n = 1
+surfaceFlux.timeStep = 1.0
+surfaceFlux.startTime = 0.0
+surfaceFlux.fileFormat = /global/project/projectdirs/iceocean/bisiclesData/ASE/THW_setup/B2_data_files/ASE-acca-4km.2d.hdf5
+surfaceFlux.name = acca
+# basal fluxes
+#basalFlux.type = zeroFlux
+basalFlux.type = maskedFlux
+basalFlux.grounded.type = zeroFlux
+#basalFlux.floating.type = piecewiseLinearFlux
+#basalFlux.floating.n = 2
+#basalFlux.floating.abscissae = 50.0 600
+#basalFlux.floating.ordinates = -200 0
+# floating is composite of background and perturbation
+basalFlux.floating.type = compositeFlux       
+basalFlux.floating.nElements = 2              
+basalFlux.timestep = 1.0                      
+basalFlux.startTime = 0.0                     
+#background (steady-state melt) ############################################
+basalFlux.floating.element0.type = boxBoundedFlux     
+basalFlux.floating.element0.hi = 2.0e+06 3.12e+06     
+basalFlux.floating.element0.lo = 1.3415e+06 2.34e+06           
+basalFlux.floating.element0.flux.type = piecewiseLinearFlux
+basalFlux.floating.element0.flux.n = 3
+basalFlux.floating.element0.flux.abscissae = 100.0 200.0 250.0
+basalFlux.floating.element0.flux.ordinates = -1.0 -0.5 -0.30
+basalFlux.floating.element0.flux.maxTopgElev = -420.0  #maximum bedrock elevation to apply flux
+
+basalFlux.floating.element1.type = zeroFlux
+#basalFlux.floating.element1.type = boxBoundedFlux            # for slow ramp
+#basalFlux.floating.element1.hi = 2.0e+06 3.12e+06            # for slow ramp
+#basalFlux.floating.element1.lo = 1.3415e+06 2.36e+06         # for slow ramp
+#basalFlux.floating.element1.flux.type = constantTimeDepFlux  # for slow ramp 
+#basalFlux.floating.element1.flux.flux_factor = -0.05         # for slow ramp
+#basalFlux.floating.backgroundFlux = 0.0 
+
+
+#calving model -- hold calving front steady
+CalvingModel.type = DeglaciationCalvingModelA
+CalvingModel.min_thickness = 0.0  #changed from 10.0
+CalvingModel.calving_thickness = 0.0
+CalvingModel.calving_depth = 1.0e+10
+CalvingModel.startTime = 1.0e+10
+CalvingModel.endTime = 2.0e+10
+
+#include vertical shear
+amr.additional_velocity = 0
+
+amr.cfl = 0.3  # "cfl" number
+amr.initial_cfl = 0.1  # "cfl" number
+#amr.max_dt_grow_factor = 1.1 # max amount dt can grow from one timestep to another
+amr.max_dt_grow_factor = 1000000 # max amount dt can grow from one timestep to another
+
+#plot and checkpoint options
+amr.plot_interval = 5
+#amr.plot_time_interval = 1.0 # plot produced every year
+amr.write_solver_rhs = 0
+amr.write_preSolve_plotfiles = false
+amr.write_flux_velocities = false
+amr.write_base_velocities = false
+amr.write_thickness_sources = true
+
+amr.write_viscous_tensor = false
+amr.write_temperature = false
+amr.write_layer_velocities = false
+amr.write_dHDt = false
+amr.write_divuh = true
+amr.write_mask = true
+
+amr.check_interval = 5 #was 60
+
+amr.check_overwrite = false
+amr.verbosity = 5
+
+
+# -- mesh generation --
+
+#use really coarse level 0, refine all ice to level 1.
+amr.tag_all_ice_on_level_0 = 1
+
+amr.tag_on_grad_velocity = 0
+amr.tag_on_laplacian_velocity = 1
+#amr.tag_on_grounded_laplacian_velocity = 1 #for now, tag on shelf as well
+amr.lap_vel_tagging_val = 25
+#amr.lap_vel_tagging_max_basal_friction_coef = 2500.0
+
+amr.tag_grounding_line = 1 
+amr.grounding_line_tagging_min_vel = 50
+#amr.grounding_line_tagging_max_basal_friction_coef = 1000.0
+
+#amr.tagSubsetBoxesFile = tag-subset.stream-shelf
+
+#initial guess
+amr.do_initial_velocity_guess = 1
+amr.do_initial_velocity_solve = 1
+amr.initial_velocity_guess_type = 1 # linear PDE
+amr.initial_velocity_guess_const_mu = 1.0e+6
+amr.initial_velocity_guess_solver_type = 1 # use JFNK solver's linear mode
+
+#------------- solver parameters ---------------------
+amr.velocity_solver_tolerance = 1.0e-10
+
+#velocity solve type -- 0 = Picard, 1 = JFNK
+amr.velocity_solver_type = 1
+
+picardSolver.num_smooth = 8
+picardSolver.linearSolver = multigrid
+picardSolver.max_iterations = 50
+picardSolver.vtopSafety = 0.9
+
+
+#JFNK parameters
+JFNKSolver.vtopSafety = 0.95
+JFNKSolver.minPicardIterations = 3
+JFNKSolver.maxIter = 40
+JFNKSolver.absTol = 1.0
+JFNKSolver.relTol = 1.0e-4
+JFNKSolver.RelaxRelTol = 1.0e-3
+JFNKSolver.RelaxHang = 0.25
+JFNKSolver.maxRelaxIter = 20
+JFNKSolver.normType = 2
+JFNKSolver.verbosity = 5
+JFNKSolver.vtopRelaxTol = 0.005
+JFNKSolver.vtopRelaxMinIter = 4
+JFNKSolver.numMGSmooth = 8
+JFNKSolver.numMGIter = 1
+JFNKSolver.h = 0.025
+JFNKSolver.switchRate = 5.0
+JFNKSolver.minStepFactor = 0.25
+#JFNKSolver.writeResiduals = true
+
+# 0 = relax, 1 = BiCGStab, 2 = GMRES, 3 = CG, 4=petsc
+JFNKSolver.solverType = 0
+
+# bottom solver for multigrid: 0 = BiCGStab, 1 = petsc
+JFNKSolver.bottom_solver_type = 1
+
+#domain details
+#geometry.domain_size = 1024.0e+3 1280.0e+3 1.0e+3 #for ASE
+main.domain_size = 1024.0e+3 1280.0e+3 1.0e+3 #for ASE
+#geometry.num_cells = 1024 1280 10 #1km OLD - no use
+#amr.num_cells = 1024 1280 10 #1km 
+#amr.num_cells = 512 640 10 #2 km base res
+amr.num_cells = 256 320 10 #4 km base res
+#geometry.domain_offset = 288 512 0 # 4 km base offset
+#geometry.domain_offset = 576 1024 0 # 2 km base offset
+#geometry.domain_offset = 1152 2048 0 # 1 km base offset
+#amr.domainLoIndex = 1152 2048 0 # 1km base offset
+#amr.domainLoIndex = 576 1024 0 # 2km base offset
+amr.domainLoIndex = 288 512 0 #4km base offset #####switched Aug 3
+amr.sigma = 0.0 0.1663 0.3179 0.4547 0.5768 0.6842 0.7768 0.8547 0.9179 0.9663 1.0000
+amr.is_periodic = 0 0 0
+# (note that periodic BC's override physical BC types)
+# velocity BC types:  0 = homogeneous Dirichlet
+#                     1 = homogeneous Neumann
+bc.lo_bc = 0 0 0  
+bc.hi_bc = 0 0 0   
+
+amr.max_base_grid_size = 64
+amr.max_box_size = 64
+amr.max_level_floating = 4
+amr.ref_ratio = 2 2 2 2 2 2 
+amr.regrid_interval = 15
+amr.blockFactor = 16          # block factor used in grid generation
+amr.fill_ratio = 0.8          # how efficient are the grids
+amr.nesting_radius = 3        # proper nesting radius required (3 for petsc)
+amr.tags_grow = 2            # amount to buffer tags
+amr.max_vel_dx = 3.0e+5
+
+amr_restart_set_time = false
