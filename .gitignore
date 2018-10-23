@@ -4,6 +4,7 @@
 *.ipynb
 figs/
 results
+docs
 pout*
 sout*
 err*
