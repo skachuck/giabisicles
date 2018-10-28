@@ -42,4 +42,5 @@ VER=$(getsvnver $BISICLES_HOME/BISICLES)
 echo "# BISICLES REVISION: $VER" >> $INFILE 
 echo "" >> $INFILE
 
-PYTHONPATH=./:$RUNDIR:$PYTHONPATH nohup mpirun -np 4 $DRIVER $INFILE > sout.0 &> err.0 
+PYTHONPATH=./:$RUNDIR:$RUNDIR/../:$PYTHONPATH nohup mpirun -np 4 $DRIVER $INFILE > sout.0 &> err.0 
+#PYTHONPATH=./:$RUNDIR:$RUNDIR/../:$PYTHONPATH $DRIVER $INFILE > sout.0 &> err.0 
