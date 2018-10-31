@@ -8,6 +8,7 @@ import giapy.plot_tools.interp_path
 from amrfile import io as amrio
 from giapy.giaflat import thickness_above_floating
 from intersection import intersection
+from scipy.interpolate import interp2d
 
 def gen_basemap():
     """Generate the standard projection."""
@@ -69,25 +70,32 @@ def extract_ts_and_vols(outpath,skip=1,taf=False):
     
     return ts, vols
 
-def collect_field(fnames, field_name, outpath='./'):
+def collect_field(fnames, field_name, outpath='./', return_ts=False):
     flist = []
+    ts = []
     for f in fnames:
         amrID = amrio.load(outpath+f)
         lo,hi = amrio.queryDomainCorners(amrID, 0)
         xh,yh,z = amrio.readBox2D(amrID, 0, lo, hi, field_name, 0)
+        ts.append(amrio.queryTime(amrID))
 
         flist.append(z)
         amrio.free(amrID)
-    return np.array(flist)
+    returnset= np.array(flist),
+    if return_ts: returnset+= np.array(ts),
+    return returnset
 
 
-def intersect_grounding_and_center(fnames, centerline, outpath='./'):
+def intersect_grounding_and_center(fnames, centerline, outpath='./',
+                                    return_depths=False):
     """
     Finds the intersection between the grounding lines in fnames and a
     centerline, using the intersection tool from Sukhbinder Singh.
+
+
     """
 
-    xints, yints, ts = [], [], []
+    xints, yints, depths, ts = [], [], [], []
 
     for f in fnames:
         amrID = amrio.load(outpath+f)
@@ -101,15 +109,19 @@ def intersect_grounding_and_center(fnames, centerline, outpath='./'):
         xints.append(xint)
         yints.append(yint)
         ts.append(amrio.queryTime(amrID))
+        depths.append(interp2d(xh, yh, bas)(xint, yint))
 
         amrio.free(amrID)
 
     xints = np.array(xints)
     yints = np.array(yints)
+    depths = np.array(depths)
     ts = np.array(ts)
     plt.close()
     
-    return ts, xints, yints
+    return_set = ts, xints, yints
+    if return_depths: return_set+=depths,
+    return return_set
 
 def find_centerline():
     xh,yh,xvel = amrio.readBox2D(amrID, 0, lo, hi, "xVel", 0)
