@@ -1,0 +1,6 @@
+Factor and Unit tests for incorporating glacial isostatic adjustment into BISICLES.
+
+1) GIA Unit test 1D - prescribed, linear load change
+2) GIA Unit test 2D - prescribed load change, from MISMIP3D
+3) BISICLES Topography Flux Unit test - prescribed bedrock movement for MISMIP3D
+4) Factor test: GIA on MISMIP3D
