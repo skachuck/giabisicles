@@ -4,8 +4,8 @@
 #main.poutBaseName = pout.ASEBedmap2
 #amr.restart_file = ../step0/chk.Ant-500m.initial.2d.hdf5
 #amr.restart_file = chk.ASE-Bedmap2.a5.l1l2.4lev.005950.2d.hdf5 #was chk.ASE-Bedmap2.1km.l1l2.4lev.005950.2d.hdf5
-amr.plot_prefix = /global/homes/s/skachuck/giabisicles/asegia/raw/plot.ASE.Bedmap2.4km.l1l2.4lev. #was plot.ASE.Bedmap2.1km.l1l2.4lev.
-amr.check_prefix = /global/homes/s/skachuck/giabisicles/asegia/raw/chk.ASE-Bedmap2.4km.l1l2.4lev. # was chk.ASE-Bedmap2.1km.l1l2.4lev.
+amr.plot_prefix = /global/homes/s/skachuck/giabisicles/asegia/results/raw/plot.ASE.Bedmap2.4km.l1l2.4lev. #was plot.ASE.Bedmap2.1km.l1l2.4lev.
+amr.check_prefix = /global/homes/s/skachuck/giabisicles/asegia/results/raw/chk.ASE-Bedmap2.4km.l1l2.4lev. # was chk.ASE-Bedmap2.1km.l1l2.4lev.
 amr.maxLevel = 4
 
 amr.eliminate_remote_ice_after_regrid = 1
