@@ -39,4 +39,4 @@ from giascript import *
 
 gia2_surface_flux_findiff = gia2_surface_flux_fixeddt_object(X, Y, DRCTRY,
                                     PBASENAME, GBASENAME, TMAX, DT, ekwargs,
-                                    DRIVER, read='amrread')
+                                    DRIVER, read='amrread', skip=16)

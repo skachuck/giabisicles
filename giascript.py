@@ -34,7 +34,7 @@ def get_time_from_plot_file(fname):
 
 class gia2_surface_flux_fixeddt_object(object):
     def __init__(self, xg, yg, drctry, pbasename, gbasename, tmax, dt, ekwargs,
-                    driver, rate=False, read='amrread'):
+                    driver, rate=False, read='amrread', skip=1):
         self.xg = xg
         self.yg = yg
         self.nx, self.ny = len(xg), len(yg)
@@ -62,13 +62,13 @@ class gia2_surface_flux_fixeddt_object(object):
 
         # Initilize fields
         self.t = 0
-        self.uplift = np.zeros((int(tmax/dt), self.ny,self.nx))
-        self.ts = np.linspace(0, tmax, int(tmax/dt+1))
+        self.uplift = np.zeros((int(tmax/dt/self.skip), self.ny,self.nx))
+        self.ts = np.linspace(0, tmax, int(tmax/dt/self.skip+1))
         self.update_interp(0)
 
     def __call__(self, x, y, t, thck, topg, *args, **kwargs):
 
-        if not t == self.t:
+        if not (t == self.t) and (self.dt % self.skip == 0):
             self.update_interp(t)
     
         xind = int((x - self.xg[0])/self.dx)
@@ -105,14 +105,14 @@ class gia2_surface_flux_fixeddt_object(object):
             self.uplift = np.load(self.gfname.format(tstep))
         else:
             thk1, bas1 = self.read(self.pfname.format(tstep))
-            thk0, bas0 = self.read(self.pfname.format(tstep-1))
+            thk0, bas0 = self.read(self.pfname.format(tstep-self.skip))
 
             dLoad = (thickness_above_floating(thk1, bas1) - 
                         thickness_above_floating(thk0, bas0))
 
             self.propagate_2d_adjustment(t, dLoad, tstep)
 
-        uplrate = (self.uplift[tstep] - self.uplift[tstep-1])/self.dt
+        uplrate = (self.uplift[tstep] -self.uplift[tstep-1])/(self.dt*self.skip)
 
         #self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
         self.uplinterp = uplrate
