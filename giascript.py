@@ -45,6 +45,7 @@ class gia2_surface_flux_fixeddt_object(object):
                         dx=self.dx, dy=self.dy, **ekwargs)
 
         self.dt = dt
+        self.skip = skip
 
         self.drctry = drctry
         self.gfname = self.drctry+gbasename
