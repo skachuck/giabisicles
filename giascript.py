@@ -2,7 +2,7 @@
 Author: Samuel B. Kachuck
 Date: August 8, 2018
 
-Computing and (offline) coupling for giapy and BISICLES PIG example.
+Computing and (offline - read in and out) coupling for giapy and BISICLES.
 """
 
 import os, subprocess
@@ -11,6 +11,7 @@ import numpy as np
 from amrfile import io as amrio
 #import h5py
 #import warnings
+_SECSPERYEAR = 31536000
 
 def extract_field(amrID, field='thickness', level=0, order=0, returnxy=False):
     """ """
@@ -34,17 +35,34 @@ def get_time_from_plot_file(fname):
 
 class gia2_surface_flux_fixeddt_object(object):
     def __init__(self, xg, yg, drctry, pbasename, gbasename, tmax, dt, ekwargs,
-                    driver, rate=False, read='amrread', skip=1):
+                    driver, rate=False, read='amrread', skip=1, fac=1):
         self.xg = xg
-        self.yg = yg
+        self.yg = yg 
         self.nx, self.ny = len(xg), len(yg)
-        self.dx = xg[1]-xg[0]
-        self.dy = yg[1]-yg[0]
+        nx, ny = self.nx, self.ny
+        self.dx = xg[1]-xg[0]                           # m
+        self.dy = yg[1]-yg[0]                           # m
+        self.fac = fac
+        kx = np.fft.fftfreq(nx*fac, self.dx)            # m^-1
+        ky = np.fft.fftfreq(ny*fac, self.dy)            # m^-1
+        k = 2*np.pi*np.sqrt(kx[None,:]**2 + ky[:,None]**2)
 
         self.taus, self.elup, self.alpha = calc_earth(nx=self.nx, ny=self.ny,
                         dx=self.dx, dy=self.dy, **ekwargs)
+ 
+        # Earth rheology components
+        self.u =     ekwargs.get('u', 1e0)*1e21         # Pa s
+        self.u1 =    ekwargs.get('u1', None)            # Pa s
+        self.u2 =    ekwargs.get('u2', None)            # Pa s
+        self.h =     ekwargs.get('h', None)             # km
+        self.g =     ekwargs.get('g', 9.8)              # m / s
+        self.rho_r = ekwargs.get('rho', 3313)           # kg m^-3
+        self.mu =    ekwargs.get('mu', 26.6)*1e9        # Pa
+        self.fr23 =  ekwargs.get('fr23', 1.)*1e23       # N m
+        self.taus = -2*self.u*k/self.g/self.rho_r/_SECSPERYEAR # yrs
+        self.alpha = 1 + k**4*self.fr23/self.g/self.rho_r      # nondim.
 
-        self.dt = dt
+        self.dt = dt                                    # yrs
         self.skip = skip
 
         self.drctry = drctry
@@ -69,7 +87,7 @@ class gia2_surface_flux_fixeddt_object(object):
 
     def __call__(self, x, y, t, thck, topg, *args, **kwargs):
 
-        if not (t == self.t) and (self.dt % self.skip == 0):
+        if (not t == self.t) and (t/self.dt % self.skip == 0):
             self.update_interp(t)
     
         xind = int((x - self.xg[0])/self.dx)
@@ -83,20 +101,9 @@ class gia2_surface_flux_fixeddt_object(object):
         return uplrate
 
     def update_interp(self,t): 
-        if t == 0: 
-            if not os.path.exists(self.gfname.format(0)):
-
-
-                #self.uplinterp = RectBivariateSpline(self.xg, self.yg,
-                #                                        self.uplift[0].T)
-                self.uplinterp = self.uplift[0]
-                return
-            else:
-                #self.uplinterp = RectBivariateSpline(self.xg, self.yg,
-                #                np.load(self.gfname.format(0)).T)
-                #self.uplinterp = np.load(self.gfname.format(0))
-                self.uplinterp = self.uplift[0]
-                return
+        if t == 0:  
+            self.uplinterp = self.uplift[0]
+            return
 
         tstep = int(t/self.dt)
 
@@ -113,7 +120,10 @@ class gia2_surface_flux_fixeddt_object(object):
 
             self.propagate_2d_adjustment(t, dLoad, tstep)
 
-        uplrate = (self.uplift[tstep] -self.uplift[tstep-1])/(self.dt*self.skip)
+        if self.rate:
+            uplrate = self.uplift[tstep/self.skip]
+        else:
+            uplrate = (self.uplift[tstep/self.skip]-self.uplift[tstep/self.skip-1])/(self.dt*self.skip)
 
         #self.uplinterp = RectBivariateSpline(self.xg, self.yg, uplrate.T)
         self.uplinterp = uplrate
@@ -140,13 +150,17 @@ class gia2_surface_flux_fixeddt_object(object):
         # Compute the duration of dLoad from t to future times, with some
         # hackery for array slicing.
         durs = (self.ts[1:,None,None] if tstep == 0 
-                else self.ts[1:-tstep,None,None])
+                else self.ts[1:-tstep/self.skip,None,None])
         # Construct the array of unit responses.
-        unit_resp = -(1 - np.exp(durs/self.taus*self.alpha/1000))
+        if not self.rate:
+            unit_resp = -(1 - np.exp(durs/self.taus*self.alpha))
+        else: 
+            unit_resp = self.alpha/self.taus*np.exp(durs/self.taus*self.alpha)
+            unit_resp[:,0,0] = 0.
         # Propagate response to current and future times and transform back.
-        self.uplift[tstep:] += np.real(0.3*np.fft.ifft2(unit_resp/self.alpha*dload_f))
+        self.uplift[tstep/self.skip:] += np.real(0.3*np.fft.ifft2(unit_resp/self.alpha*dload_f))
         # Add elastic uplift off lithosphere.
-        self.uplift[tstep:]+=np.real(0.3*np.fft.ifft2((1-1./self.alpha)*self.elup*dload_f[0]))
+        #self.uplift[tstep/self.skip:]+=np.real(0.3*np.fft.ifft2((1-1./self.alpha)*self.elup*dload_f[0]))
 
     def flatten_and_read(self, fname):
         oname = self.drctry+'tempfile{:d}.hdf5'.format(np.random.randint(255))
@@ -176,6 +190,98 @@ class gia2_surface_flux_fixeddt_object(object):
         return thk, bas
 
 
+class BuelerGIARate(object):
+    """
+    As far as I can tell, this method requires interleaving the timesteps of the
+    ice-flow load and the gia. This works, however, especially well with the
+    surfaceFlux interface, as we may assume that the velocities remain relatively
+    unchanged, so we can assume that we compute the loads at each half-timestep
+    and use a finite difference approximation of the uplift at integer time-steps
+    to compute the displacement velocity.
+    
+    To compute the load at each half-timestep requires keeping in memory the load
+    above flotation at the start of the simulation to get the load (relative to
+    the start).
+    """
+    def __init__(self, xg, yg, drctry, pbasename, gbasename, tmax, dt, ekwargs,
+                    driver, rate=False, read='amrread', skip=1, fac=1):
+        # Grid and FFT features
+        self.xg = xg
+        self.yg = yg
+        self.nx, self.ny = len(xg), len(yg)
+        nx, ny = self.nx, self.ny
+        self.dx = xg[1]-xg[0]                           # m
+        self.dy = yg[1]-yg[0]                           # m
+        self.fac = fac
+        kx = np.fft.fftfreq(nx*fac, self.dx)            # m^-1
+        ky = np.fft.fftfreq(ny*fac, self.dy)            # m^-1
+        k = 2*np.pi*np.sqrt(kx[None,:]**2 + ky[:,None]**2)
+
+        # Earth rheology components
+        self.u =     ekwargs.get('u', 1e0)*1e21         # Pa s
+        self.u1 =    ekwargs.get('u1', None)            # Pa s
+        self.u2 =    ekwargs.get('u2', None)            # Pa s
+        self.h =     ekwargs.get('h', None)             # km
+        self.g =     ekwargs.get('g', 9.8)              # m / s
+        self.rho_r = ekwargs.get('rho', 3313)           # kg m^-3
+        self.mu =    ekwargs.get('mu', 26.6)*1e9        # Pa
+        self.fr23 =  ekwargs.get('fr23', 1.)*1e23       # N m
+        alpha = 2*self.u*k                              # N m^-3 s
+        self.beta = self.rho_r*self.g+self.fr23*k**4    # N m^-3 
+        self.gamma = (alpha + 0.5*dt*_SECSPERYEAR*self.beta)**(-1) # m / s / Pa 
+        self.gamma[0,0] = 0.
+
+        # Simulation components
+        self.t = 0
+        self.dt = dt # years
+        self.drctry = drctry
+        self.gfname = self.drctry+gbasename
+        self.pfname = self.drctry+pbasename
+        self.read = self.amrread
+
+        # Initialize fields in memory
+        self.taf0hat = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)
+        self.dLhat = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)
+        self.Uhatn = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)
+        self.Udot = np.zeros((ny,nx))
+
+    def __call__(self, x, y, t, thck, topg, *args, **kwargs):
+        if (not t == self.t):
+            self._update_dUdot(t)
+    
+        xind = int((x - self.xg[0])/self.dx)
+        yind = int((y - self.yg[0])/self.dy)
+
+        # Interpolate to x,y
+        uplrate = float(self.Udot[yind, xind])
+    
+        # Return
+        return uplrate
+
+
+    def _update_dUdot(self,t):
+        if not np.any(self.taf0hat):
+            thk0, bas0 = self.read(self.pfname.format(0))
+            self.taf0hat = np.fft.fft2(thickness_above_floating(thk0,bas0),
+                                        (self.ny*self.fac, self.nx*self.fac))
+ 
+        n = int(t/self.dt)
+        thkn, basn = self.read(self.pfname.format(n))
+        dLhat = (np.fft.fft2(thickness_above_floating(thkn,basn), (self.ny*self.fac, self.nx*self.fac)) -
+                    self.taf0hat)*1000*self.g
+        # Bueler, et al. 2007 eq 11
+        Uhatdot = -self.gamma*(dLhat + self.beta*self.Uhatn)*_SECSPERYEAR
+        self.Uhatn += Uhatdot*self.dt
+        self.Udot = np.real(np.fft.ifft2(Uhatdot))[:self.ny, :self.nx]
+        self.t = t
+
+    def amrread(self, fname): 
+        amrID = amrio.load(fname)
+        thk = extract_field(amrID, 'thickness')
+        bas = extract_field(amrID, 'Z_base')
+        amrio.free(amrID)
+        return thk, bas
+
 def thickness_above_floating(thk, bas, beta=0.9):
     """Compute the (water equivalent) thickness above floating.
 
@@ -202,7 +308,7 @@ def calc_earth(nx,ny,dx,dy,return_freq=False,**kwargs):
 
     """ 
     freqx = np.fft.fftfreq(nx, dx)
-    freqy = np.fft.fftfreq(ny, dx)
+    freqy = np.fft.fftfreq(ny, dy)
     freq = 2*np.pi*np.sqrt(freqx[None,:]**2 + freqy[:,None]**2)
 
     u = kwargs.get('u', 1e0)
