@@ -14,6 +14,7 @@
 #define _PYTHONGIAFLUX_H_
 
 #include "SurfaceFlux.H"
+#include "PythonInterface.H"
 #include "NamespaceHeader.H"
 
 /// implementation of SurfaceFlux for GIA thickness flux computed via python
@@ -22,7 +23,13 @@
 class pythonGIAflux : public SurfaceFlux
 {
 public:
+  /// default constructor
   pythonGIAflux();
+
+  /// full constructor
+  pythonGIAflux(const std::string& a_pyModuleName , 
+		const std::string& a_pyFuncGIAName,
+		std::map<std::string,Real>& a_kwarg);
 
   virtual ~pythonGIAflux();
 
@@ -33,6 +40,17 @@ public:
 				    const AmrIceBase& a_amrIce, 
 				    int a_level, Real a_dt);
 
+protected:
+
+#ifdef HAVE_PYTHON
+  PyObject*  m_pModule;
+  PyObject*  m_pFuncGIA;
+  std::map<std::string,Real> m_kwarg;  
+#endif
+
+  LevelData<FArrayBox> m_flux;
+  ProblemDomain m_domain;
+  
 private:
   // Disallowed for all the usual reasons
   void operator=(const pythonGIAflux& a_input)

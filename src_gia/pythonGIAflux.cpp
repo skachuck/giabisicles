@@ -21,13 +21,35 @@ pythonGIAflux::pythonGIAflux()
 }
 
 
+/// full constructor
+pythonGIAflux::pythonGIAflux(const std::string& a_pyModuleName , 
+			     const std::string& a_pyFuncGIAName,
+			     std::map<std::string,Real>& a_kwarg)
+{
+#ifdef HAVE_PYTHON
+  m_kwarg = a_kwarg;
+  PythonInterface::InitializePythonModule(&m_pModule,  a_pyModuleName);
+  PythonInterface::InitializePythonFunction(&m_pFuncGIA, m_pModule,  a_pyFuncGIAName);
+#endif
+}
+
 pythonGIAflux::~pythonGIAflux()
 {
+  
+#ifdef HAVE_PYTHON  
+  delete m_pModule;
+  delete m_pFuncGIA;
+#endif
+  
 }
 
 SurfaceFlux*
 pythonGIAflux::new_surfaceFlux()
 {
+  MayDay::Error("pythonGIAflux::new_surfaceFlux not defined yet");
+  pythonGIAflux* ptr = new pythonGIAflux;
+  //pythonGIAflux* ptr = new pythonGIAflux(m_pModule, m_pFuncGIA, m_kwarg);
+  return static_cast<SurfaceFlux*>( ptr);  
 }
 
 void
