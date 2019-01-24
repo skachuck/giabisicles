@@ -87,7 +87,7 @@ def collect_field(fnames, field_name, outpath='./', return_ts=False):
 
 
 def intersect_grounding_and_center(fnames, centerline, outpath='./',
-                                    return_depths=False):
+                                    return_depths=False, return_thks=False):
     """
     Finds the intersection between the grounding lines in fnames and a
     centerline, using the intersection tool from Sukhbinder Singh.
@@ -95,21 +95,42 @@ def intersect_grounding_and_center(fnames, centerline, outpath='./',
 
     """
 
-    xints, yints, depths, ts = [], [], [], []
+    xints, yints, depths, thks, ts, slps = [], [], [], [], [], []
+
+    thetas = np.arctan(np.gradient(centerline.xs)/np.gradient(centerline.ys))
 
     for f in fnames:
         amrID = amrio.load(outpath+f)
         lo,hi = amrio.queryDomainCorners(amrID, 0)
         xh,yh,bas = amrio.readBox2D(amrID, 0, lo, hi, "Z_base", 0)
         xh,yh,bot = amrio.readBox2D(amrID, 0, lo, hi, "Z_bottom", 0)
+        xh,yh,thk = amrio.readBox2D(amrID, 0, lo, hi, "thickness", 0)
 
         p = plt.contour(xh, yh, np.abs(bas-bot), levels=[0.1], colors='r');
         glx, gly = p.allsegs[0][0].T
         xint, yint = intersection.intersection(glx, gly, centerline.xs, centerline.ys)
+        xint = np.mean(xint)
+        yint=np.mean(yint)
         xints.append(xint)
         yints.append(yint)
         ts.append(amrio.queryTime(amrID))
         depths.append(interp2d(xh, yh, bas)(xint, yint))
+        thks.append(interp2d(xh, yh, thk)(xint, yint))
+
+        xi = np.argmin(np.abs(xh-xint))
+        yi = np.argmin(np.abs(yh-yint))
+        slpx = bas[yi, xi+1]-bas[yi, xi-1]/(2*(xh[1]-xh[0]))
+        slpy = bas[yi+1, xi]-bas[yi-1, xi]/(2*(yh[1]-yh[0]))
+
+    
+
+        thi = np.argmin((centerline.xs-xint)**2 + (centerline.ys-yint)**2)
+        theta = thetas[thi]
+      
+        slp = slpx*np.cos(theta) + slpy*np.sin(theta)
+
+        slp = np.sqrt(slpx**2 + slpy**2)
+        slps.append(slp)
 
         amrio.free(amrID)
 
@@ -121,6 +142,9 @@ def intersect_grounding_and_center(fnames, centerline, outpath='./',
     
     return_set = ts, xints, yints
     if return_depths: return_set+=depths,
+    if return_thks: return_set+=thks,
+    return_set += slps,
+    return_set = [np.asarray(rs) for rs in return_set]
     return return_set
 
 def find_centerline():
