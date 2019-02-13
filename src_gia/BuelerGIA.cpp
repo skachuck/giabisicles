@@ -92,6 +92,7 @@ protected:
   int m_Nx, m_Ny;
   Real m_Lx, m_Ly;
   bool m_isDomainSet;
+  Real m_updatedTime;
   // Constants for GIA step (computed once, stored) (size Nx x Ny)
   RealVect m_beta, m_gamma;
   // Other quantities required during computation (size Nx x Ny)
@@ -173,37 +174,44 @@ BuelerGIAFlux::surfaceThicknessFlux(LevelData<FArrayBox>& a_flux,
   Real time = a_amrIce.time();
   bool needToUpdate = updateCheck(time);
 
-  if ( needToUpdate ) {  // If need to update, extract height above flotation
-    const LevelSigmaCS& levelCoords = *a_amrIce.geometry(0);
-    const FArrayBox& m_taf = levelCoords.getThicknessOverFlotation();
-    updateUdot(m_taf);
+  if ( needToUpdate ) {  
+    // If need to update, do so. 
+    updateUdot(a_amrIce);
+    m_updatedTime = time; 
+  }
+  RealVect dx = a_amrIce.dx(a_level);
+  FillFromReference(a_flux,
+                    *m_udot,
+                    dx, m_inputFluxDx,
+                    m_verbose);
 
-  // Fill in flux
-  DataIterator dit = a_flux.dataIterator();
-  for (dit.begin(); dit.ok(); ++dit)
-    {
-      FArrayBox& thisFlux = a_flux[dit];
-      thisFlux.setVal(0.0);
-      BoxIterator bit(thisFlux.box());
-      // compute distance from spot center
-      for (bit.begin(); bit.ok(); ++bit)
-        {
-          IntVect iv = bit();
-          thisFlux(iv,0) = m_udot(iv,0);
-        } // end loop over cells in this box
-    } // end loop over boxes
+  // Using FillFromReference instead of below.
+  //// Fill in flux
+  //DataIterator dit = a_flux.dataIterator();
+  //for (dit.begin(); dit.ok(); ++dit)
+  //  {
+  //    FArrayBox& thisFlux = a_flux[dit];
+  //    thisFlux.setVal(0.0);
+  //    BoxIterator bit(thisFlux.box());
+  //    // compute distance from spot center
+  //    for (bit.begin(); bit.ok(); ++bit)
+  //      {
+  //        IntVect iv = bit();
+  //        thisFlux(iv,0) = m_udot(iv,0);
+  //      } // end loop over cells in this box
+  //  } // end loop over boxes
 }
 
 void
 BuelerGIAFlux::precomputeGIAstep() {
   // We use real-to-real (discrete hartley) transformations.
-  // Note: FFTW requires matrix in row-major order. 
+  // Note: FFTW in column-major order by swapping order of Nx, Ny. 
   // Note: Inverse fft needs to be normalized by N.
-  fftfor_load = fftw_plan_r2r_2d(Nx, Ny, &dL[0][0], &dLhat[0][0], 
+  fftfor_load = fftw_plan_r2r_2d(Ny, Nx, &dL[0][0], &dLhat[0][0], 
                                   FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
-  fftinv_udot = fftw_plan_r2r_2d(Nx, Ny, &Uhatdot[0][0], &Udot[0][0], 
+  fftinv_udot = fftw_plan_r2r_2d(Ny, Nx, &Uhatdot[0][0], &Udot[0][0], 
                                   FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
-  fftinv_u = fftw_plan_r2r_2d(Nx, Ny, &Uhatn[0][0], &Un[0][0], 
+  fftinv_u = fftw_plan_r2r_2d(Ny, Nx, &Uhatn[0][0], &Un[0][0], 
                                             FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
 
   Real kx, ky, kij, tau, alpha_l;
@@ -225,21 +233,35 @@ BuelerGIAFlux::precomputeGIAstep() {
   m_gamma[0][0] = 0.;
 }
 
-bool BuelerTopgFlux::updateCheck(float t) {
-  return true;
+bool BuelerTopgFlux::updateCheck(Real time) {
+  return time != m_updatedTime;
 }
 
 // The main physics are here. Right now set up to receive the loading stress
 // (in Pa), but probably should accept height above flotation, from BISICLES.
 void 
-BuelerTopgFlux::updateUdot( MatDoub &a_taf ) {
+BuelerTopgFlux::updateUdot( const AmrIceBase& a_amrIce ) {
+  //extract height above flotation for each level,
+  // flatten it to a single level and compute response.
+  int n = amrIce.finestLevel() + 1;
+  Vector<LevelData<FArrayBox>* > data(n);
+  Vector<RealVect> amrDx(n);
+   
+  for (int lev=0; lev<n; lev++) {
+    data[lev] = const_cast<LevelData<FArrayBox>* >(&(a_amrIce.geometry(lev)->getThicknessOverFlotation()));
+    amrDx[lev] = amrIce.dx(lev);
+  }
+
+  RealVect m_destDx = amrIce.dx(0)
+
+  flattenCellData(m_taf, m_destDx,data,amrDx,m_verbose); 
+
   // FFT forward transform the load
-  m_taf = a_taf;
   fftpadfor();
   // Update transformed velocity and uplift fields using Bueler, et al. 2007, eq 11.
   for (int i=0;i<Nx;i++) {
     for (int j=0;j<Ny;j++) {
-      m_dothat[i][j] = -m_gamma[i][j]*((m_tafhat[i][j] - m_tafhat0)*m_iceDensity*m_gravity + 
+      m_udothat[i][j] = -m_gamma[i][j]*((m_tafhat[i][j] - m_tafhat0)*m_iceDensity*m_gravity + 
                                         m_beta[i][j]*m_uhat[i][j])*SECSPERYEAR;
       m_uhat[i][j] += m_udothat[i][j]*m_dt;
     }
