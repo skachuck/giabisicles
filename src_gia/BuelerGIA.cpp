@@ -94,13 +94,13 @@ protected:
   bool m_isDomainSet;
   Real m_updatedTime;
   // Constants for GIA step (computed once, stored) (size Nx x Ny)
-  RealVect m_beta, m_gamma;
+  LevelData<FArrayBox> m_beta, m_gamma;
   // Other quantities required during computation (size Nx x Ny)
-  RealVect m_tafhat0;         // Initial thickness above flotation 
-                              // (assumes initially isostatic equilbrium).
-  RealVect m_taf, m_tafhat;   // Thickness above flotation and FFT'd.
-  RealVect m_udot, m_udothat; // Surface velocity and FFT'd.
-  RealVect m_uhat;            // FFT'd surface displacements.
+  LevelData<FArrayBox> m_tafhat0;         // Initial thickness above flotation 
+                                          // (assumes initially isostatic equilbrium).
+  LevelData<FArrayBox> m_taf, m_tafhat;   // Thickness above flotation and FFT'd.
+  LevelData<FArrayBox> m_udot, m_udothat; // Surface velocity and FFT'd.
+  LevelData<FArrayBox> m_uhat;            // FFT'd surface displacements.
   // FFTW transformations.
   fftw_plan fftfor_load, fftinv_udot, fftinv_u;
 
@@ -213,6 +213,24 @@ BuelerGIAFlux::precomputeGIAstep() {
                                   FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
   fftinv_u = fftw_plan_r2r_2d(Ny, Nx, &Uhatn[0][0], &Un[0][0], 
                                             FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
+
+  IntVect loVect = IntVect::Zero;
+  IntVect hiVect(Nx-1, Ny-1);
+  Box domBox(loVect, hiVect);
+  Vector<Box> thisVectBox(1);
+  thisVectBox[0] = domBox;
+  Vector<int> procAssign(1,0);
+  DisjointBoxLayout dbl(thisVectBox, procAssign);
+
+  // Resize the arrays
+  m_beta.resize(dbl,1);
+  m_gamma.resize(dbl,1);
+  m_tafhat0.resize(dbl,1);        
+  m_taf.resize(dbl,1); 
+  m_tafhat.resize(dbl,1); 
+  m_udot.resize(dbl,1); 
+  m_udothat.resize(dbl,1); 
+  m_uhat.resize(dbl,1); 
 
   Real kx, ky, kij, tau, alpha_l;
 
