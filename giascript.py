@@ -45,7 +45,8 @@ class TopgFluxBase(object):
     """
     def __init__(self, xg, yg, drctry, pbasename, gbasename, tmax, dt, ekwargs,
                     U0=None, driver=None, rate=False, fixeddt=True,
-                    read='amrread', skip=1, fac=1, nwrite=10):
+                    read='amrread', skip=1, fac=1, nwrite=10,
+                    include_elastic=False):
         # Grid and FFT properties
         self.xg = xg
         self.yg = yg 
@@ -66,6 +67,7 @@ class TopgFluxBase(object):
         self.g =     ekwargs.get('g', 9.8)              # m / s
         self.rho_r = ekwargs.get('rho', 3313)           # kg m^-3
         self.mu =    ekwargs.get('mu', 26.6)*1e9        # Pa
+        self.lam =   ekwargs.get('lam', 34.2666)*1e9    # Pa
         self.D =     ekwargs.get('D', 1e23)             # N m
         
         warn = 'Two layer model must have u1 and u2 set.'
@@ -89,9 +91,14 @@ class TopgFluxBase(object):
         else:
             r = 1
         self.r = r
+        # Lithospher filter
         self.alpha_l = 1 + self.k**4*self.D/self.g/self.rho_r
-        self.taus = 2*self.u*self.k/self.g/self.rho_r/self.alpha_l # s
-#        self.taus = self.taus/_SECSPERYEAR                       # yrs
+        # Relaxation time
+        self.taus = 2*self.u*self.k/self.g/self.rho_r/self.alpha_l  # s
+        # Elastic halfspace response
+        self.ue = -1/(2*self.k)*(1/self.mu + 1/(self.mu+self.lam))  # m
+        # with litosphere filter.
+        self.ue *= (1-self.alpha_l**(-1))                           # m
 
         # Time and coupling properties
         self.t = 0
@@ -99,6 +106,7 @@ class TopgFluxBase(object):
         self.dt = dt                                    # yrs
         self.fixeddt = dt
         self.skip = skip
+        self.include_elastic = include_elastic
 
         # Miscellanious properties
         self.drctry = drctry
@@ -221,6 +229,9 @@ class BuelerTopgFlux(TopgFluxBase):
         self.Udot = np.zeros((ny,nx))
         self.interper = RectBivariateSpline(self.xg, self.yg, self.Udot.T)
 
+        self.uedotold = 0.
+        self.dLhatold = 0.
+
 
     def _update_Udot(self,t):
         if not np.any(self.taf0hat) and self.U0 is None:
@@ -237,16 +248,30 @@ class BuelerTopgFlux(TopgFluxBase):
         dLhat = (self.fft2andpad(thickness_above_floating(thkn,basn)) -
                                                     self.taf0hat)*1000*self.g
 
-        # Bueler, et al. 2007 eq 11
-        Uhatdot = -self.gamma*(dLhat + self.beta*self.Uhatn)*_SECSPERYEAR    # m / yr
-        self.Uhatn += Uhatdot*self.dt
-        self.Udot = self.ifft2andcrop(Uhatdot)
+        self._Udot_from_dLhat(dLhat)
+
+        self.dLhatold = dLhat
+
         self.interper = RectBivariateSpline(self.xg, self.yg, self.Udot.T)
         self.t = t
 
         if n % self.nwrite == 0:
             pickle.dump(self.Uhatn, open(self.gfname.format(n), 'w'))
 
+    
+    def _Udot_from_dLhat(self, dLhat):
+        # Bueler, et al. 2007 eq 11
+        Uhatdot = -self.gamma*(dLhat + self.beta*self.Uhatn)*_SECSPERYEAR    # m / yr
+        # Update uplift field prior to including elastic effect, so that fluid
+        # equilibrium is corrct.
+        self.Uhatn += Uhatdot*self.dt
+        # Now include the elastic effect if requested.
+        if self.include_elastic:
+            uedot = self.ue*(dLhat - self.dLhatold)/self.dt 
+            Uhatdot += uedor  - self.uedotold
+            self.uedotold = uedot
+        self.Udot = self.ifft2andcrop(Uhatdot)
+        
 class CathlesTopgFlux(TopgFluxBase):
     def initialize(self):
         nsteps = int(tmax/dt/self.skip)
