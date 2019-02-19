@@ -12,8 +12,8 @@ main.constitutiveRelation = L1L2
 main.rateFactor = arrheniusRate
 ArrheniusRate.epsSqr0 = 1.0e-12
 
-#amr.restart_file = /data/piggia/1en3-1-coup/float2/chk.pigv5.1km-1en3-1-coup.l1l2.2lev.000000.2d.hdf5
-#amr.restart_set_time = false
+#amr.restart_file = /data/piggia/raw-inv/chk.pigv5.1km.l1l2.2lev.000000.2d.hdf5
+#amr.restart_set_time = true
 
 #geometry,temperature & basal friction input data
 geometry.problem_type = LevelData
@@ -93,7 +93,7 @@ JFNKSolver.switchRate = 2.0
 
 
 #time stepping
-main.maxTime = 75  # maximum time to run to
+main.maxTime = 150  # maximum time to run to
 main.maxStep = 10000   # maximum number of steps to runx
 amr.temporal_accuracy = 1
 amr.cfl = 0.25  
