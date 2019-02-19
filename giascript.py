@@ -6,22 +6,25 @@ Computing and (offline - read in and out) coupling for giapy and BISICLES.
 
 Classes
 -------
-TopgFluxBase
-BuelerTopgFlux
-CathlesTopgFlux
-TO BE DELETED: gia2_surface_flux_fixeddt_object
+TopgFluxBase: An abstract class for BISICLES interface and common tasks
+BuelerTopgFlux: The Bueler 2007 method, in velocity form, with elasticity
+CathlesTopgFlux: 
 
+Methods
+-------
 thickness_above_floating(thk, bas, beta=0.9)
+
+BISICLES HELPER FUNCTIONS:
 extract_field(amrID, field='thickness', level=0, order=0, returnxy=False)
 get_latest_plot_file(drctry, basename)
 get_time_from_plot_file(fname)
-TO BE DELETED: calc_earth
 """
 
 import os, subprocess
 import numpy as np
 import pickle
 try:
+    # BISICLES AMR tools for reading and writing.
     from amrfile import io as amrio
 except:
     pass
@@ -95,7 +98,7 @@ class TopgFluxBase(object):
         self.alpha_l = 1 + self.k**4*self.D/self.g/self.rho_r
         # Relaxation time
         self.taus = 2*self.u*self.k/self.g/self.rho_r/self.alpha_l  # s
-        # Elastic halfspace response
+        # Elastic halfspace response, Cathles (1975) III-46
         self.ue = -1/(2*self.k)*(1/self.mu + 1/(self.mu+self.lam))  # m
         # with litosphere filter.
         self.ue *= (1-self.alpha_l**(-1))                           # m
@@ -332,100 +335,6 @@ class CathlesTopgFlux(TopgFluxBase):
         # Propagate response to current and future times and transform back.
         self.uplift[tstep/self.skip:] += np.real(0.3*self.ifft2andcrop(unit_resp/self.alpha_l*dload_f))
 
-class gia2_surface_flux_fixeddt_object(object):
-    def __init__(self, xg, yg, drctry, pbasename, gbasename, tmax, dt, ekwargs,
-                    driver, rate=False, read='amrread', skip=1):
-        self.xg = xg
-        self.yg = yg 
-        self.nx, self.ny = len(xg), len(yg)
-        nx, ny = self.nx, self.ny
-        self.dx = xg[1]-xg[0]                           # m
-        self.dy = yg[1]-yg[0]                           # m
-        self.fac = fac
-        kx = np.fft.fftfreq(nx*fac, self.dx)            # m^-1
-        ky = np.fft.fftfreq(ny*fac, self.dy)            # m^-1
-        k = 2*np.pi*np.sqrt(kx[None,:]**2 + ky[:,None]**2)
-
-        self.taus, self.elup, self.alpha = calc_earth(nx=self.nx, ny=self.ny,
-                        dx=self.dx, dy=self.dy, **ekwargs)
- 
-        # Earth rheology components
-        self.u =     ekwargs.get('u', 1e0)*1e21         # Pa s
-        self.u1 =    ekwargs.get('u1', None)            # Pa s
-        self.u2 =    ekwargs.get('u2', None)            # Pa s
-        self.h =     ekwargs.get('h', None)             # km
-        self.g =     ekwargs.get('g', 9.8)              # m / s
-        self.rho_r = ekwargs.get('rho', 3313)           # kg m^-3
-        self.mu =    ekwargs.get('mu', 26.6)*1e6        # Pa
-        self.D =  ekwargs.get('D', 1.)                  # N m
-        self.taus = -2*self.u*k/self.g/self.rho/_SECSPERYEAR 
-
-        self.dt = dt
-        self.skip = skip
-
-        self.drctry = drctry
-        self.gfname = self.drctry+gbasename
-        self.pfname = self.drctry+pbasename
-
-        self.DRIVER = driver
-
-        self.rate = rate
-        if read == 'amrread':
-            self.read = self.amrread
-        elif read == 'flatten_and_read':
-            self.read = self.flatten_and_read
-        else:
-            raise(ValueError, 'read type not understood')
-
-        # Initilize fields
-        self.t = 0
-        self.uplift = np.zeros((int(tmax/dt/self.skip), self.ny,self.nx))
-        self.ts = np.linspace(0, tmax, int(tmax/dt/self.skip+1))
-        self.update_interp(0)
-
-    def __call__(self, x, y, t, thck, topg, *args, **kwargs):
-
-        if (not t == self.t) and (t/self.dt % self.skip == 0):
-            self.update_interp(t)
-    
-        xind = int((x - self.xg[0])/self.dx)
-        yind = int((y - self.yg[0])/self.dy)
-
-        # Interpolate to x,y
-        #uplrate = float(self.uplinterp.ev(x,y))
-        uplrate = float(self.uplinterp[yind, xind])
-    
-        # Return
-        return uplrate
-
-
-    def flatten_and_read(self, fname):
-        oname = self.drctry+'tempfile{:d}.hdf5'.format(np.random.randint(255))
-        warnings.warn('Beginning of function with oname {}'.format(oname), Warning)
-        cmd = '$BISICLES_HOME/BISICLES/code/filetools/flatten2d.'+self.DRIVER
-        subprocess.call(' '.join([cmd,fname,oname,'0']), shell=True)
-        warnings.warn('File {} flattened'.format(oname), Warning)
-        f = h5py.File(oname, 'r')
-        warnings.warn('Flatenned file {} read'.format(oname), Warning)
-        # Load the file, reshape it, and trim the artificial edges
-        foo = f['level_0/data:datatype=0'].value.reshape((-1,self.ny+2,self.nx+2))[:,1:-1,1:-1]
-        warnings.warn('Array read from {}'.format(oname), Warning)
-        f.close()
-        warnings.warn('File {} closed'.format(oname), Warning)
-        thk, bas = foo[0], foo[6]
-        warnings.warn('Arrays separated from {}'.format(oname), Warning)
-
-        subprocess.call('rm '+oname, shell=True)
-        warnings.warn('Flattened file {} deleted'.format(oname), Warning)
-        return thk, bas
-
-    def amrread(self, fname): 
-        amrID = amrio.load(fname)
-        thk = extract_field(amrID, 'thickness')
-        bas = extract_field(amrID, 'Z_base')
-        amrio.free(amrID)
-        return thk, bas
-
 def thickness_above_floating(thk, bas, beta=0.9):
     """Compute the (water equivalent) thickness above floating.
 
@@ -437,9 +346,11 @@ def thickness_above_floating(thk, bas, beta=0.9):
     taf = (beta*thk+bas)*(beta*thk>-bas)*(bas<0) + beta*thk*(bas>0)
     return taf
 
-def ocean_load(thk, bas):
-    wl = -bas*(bas<0)
+# TO BE IMPLEMENTED
+#def ocean_load(thk, bas):
+#    wl = -bas*(bas<0)
 
+# BISICLES HELPER FUNCTIONS
 def extract_field(amrID, field='thickness', level=0, order=0, returnxy=False):
     """ """
     lo,hi = amrio.queryDomainCorners(amrID, level)
@@ -459,66 +370,3 @@ def get_time_from_plot_file(fname):
     t = amrio.queryTime(amrID)
     amrio.free(amrID)
     return t
-
-def calc_earth(nx,ny,dx,dy,return_freq=False,**kwargs):
-    """Compute the decay constants, elastic uplift, and lithosphere filter.
-
-    Parameters
-    ----------
-    nx, ny : int
-        Shape of flat earth grid.
-    dx, dy : float
-        Grid spacing.
-    
-    Returns
-    -------
-
-    """ 
-    freqx = np.fft.fftfreq(nx, dx)
-    freqy = np.fft.fftfreq(ny, dy)
-    freq = 2*np.pi*np.sqrt(freqx[None,:]**2 + freqy[:,None]**2)
-
-    u = kwargs.get('u', 1e0)
-    u1 = kwargs.get('u1', None)
-    u2 = kwargs.get('u2', None)
-    h = kwargs.get('h', None)
-    g = kwargs.get('g', 9.8)
-    rho = kwargs.get('rho', 3313)
-    mu = kwargs.get('mu', 26.6)
-    D = kwargs.get('D')/1e23
-
-    # Error catching. For two viscous layers, u1, u2, and u3 must be set.
-    assert (u1 is not None) == (u2 is not None) == (h is not None), 'Two layer model must have u1 and u2 set.'
-
-    if u1 is not None:
-        # Cathles (1975) III-21
-        c = np.cosh(freq*h)
-        s = np.sinh(freq*h)
-        ur = u2/u1
-        ui = 1./ur
-        r = 2*c*s*ur + (1-ur**2)*(freq*h)**2 + ((ur*s)**2+c**2)
-        r = r/((ur+ui)*s*c + freq*h*(ur-ui) + (s**2+c**2))
-
-        u = u1
-
-    else:
-        r = 1
-
-
-    # taus is in kyr
-    taus = -2*u*np.abs(freq/g/rho * 1e8/np.pi)*r
-
-    # elup is in m
-    elup = -rho*g/2/mu/freq*1e-6
-    elup[0,0] = 0
-
-    # alpha is dimensionless
-    alpha = 1 + freq**4*fr23/g/rho*1e11
-
-    if return_freq:
-        return freq, taus, elup, alpha
-    else:
-        return taus, elup, alpha
-
-
-
