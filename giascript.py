@@ -386,9 +386,8 @@ if __name__ == '__main__':
         load[(xi/Nx > 0.333)*(xi/Nx < 0.666)*(yj/Ny > 0.333) *(yj/Ny<0.666)] = 1.
     else:
         raise ValueError('test style not understood')
-        
+    # Make the flux object
+    buelerflux = BuelerTopgFlux(np.linspace(0,128000,Nx), np.linspace(0,128000,Ny), './', 'blah', 'blah', TMAX, 1., {},fac=1)       
     for i in range(TMAX):
-        buelerflux = BuelerTopgFlux(np.linspace(0,128000,Nx),
-        np.linspace(0,128000,Ny), './', 'blah', 'blah', TMAX, 1., {},fac=1)
         buelerflux._Udot_from_dLhat(buelerflux.fft2andpad(load))
         np.savetxt("{0}test_t{1:d}.txt".format(test,i), buelerflux.ifft2andcrop(buelerflux.Uhatn))
