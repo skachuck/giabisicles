@@ -100,6 +100,7 @@ class TopgFluxBase(object):
         self.taus = 2*self.u*self.k/self.g/self.rho_r/self.alpha_l  # s
         # Elastic halfspace response, Cathles (1975) III-46
         self.ue = -1/(2*self.k)*(1/self.mu + 1/(self.mu+self.lam))  # m
+        self.ue[0,0] = 0
         # with litosphere filter.
         self.ue *= (1-self.alpha_l**(-1))                           # m
 
@@ -271,7 +272,7 @@ class BuelerTopgFlux(TopgFluxBase):
         # Now include the elastic effect if requested.
         if self.include_elastic:
             uedot = self.ue*(dLhat - self.dLhatold)/self.dt 
-            Uhatdot += uedor  - self.uedotold
+            Uhatdot += uedot - self.uedotold
             self.uedotold = uedot
         self.Udot = self.ifft2andcrop(Uhatdot)
         
