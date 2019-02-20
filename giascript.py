@@ -20,7 +20,8 @@ get_latest_plot_file(drctry, basename)
 get_time_from_plot_file(fname)
 """
 
-import os, subprocess
+from __future__ import division
+import os, subprocess, sys
 import numpy as np
 import pickle
 try:
@@ -373,20 +374,21 @@ def get_time_from_plot_file(fname):
     return t
 
 if __name__ == '__main__':
-    TMAX = 10.
+    TMAX = 10
     test = sys.argv[1]
     Nx, Ny = int(sys.argv[2]), int(sys.argv[3])
     xi, yj = np.meshgrid(np.arange(Nx), np.arange(Ny))
     load = np.zeros((Ny, Nx))
     if test == 'periodic':
         fx, fy = float(sys.argv[4]), float(sys.argv[5])
-        load = np.cos(xi*fx*2*np.pi/Nx)*np.cos(yi*fy*2*np.pi/Ny)
+        load = np.cos(xi*fx*2*np.pi/Nx)*np.cos(yj*fy*2*np.pi/Ny)
     elif test == 'square':
         load[(xi/Nx > 0.333)*(xi/Nx < 0.666)*(yj/Ny > 0.333) *(yj/Ny<0.666)] = 1.
     else:
         raise ValueError('test style not understood')
         
     for i in range(TMAX):
-        buelerflux = BuelerTopgFlux(np.linspace(0,128000,Nx), np.linspace(0,128000,Ny), './', 'blah', 'blah', 10, 1., {},fac=1)
+        buelerflux = BuelerTopgFlux(np.linspace(0,128000,Nx),
+        np.linspace(0,128000,Ny), './', 'blah', 'blah', TMAX, 1., {},fac=1)
         buelerflux._Udot_from_dLhat(buelerflux.fft2andpad(load))
-        np.savetxt({0}test_t{1:d}.txt".format(test,i), buelerflux.ifft2andcrop(Uhat))
+        np.savetxt("{0}test_t{1:d}.txt".format(test,i), buelerflux.ifft2andcrop(buelerflux.Uhatn))
