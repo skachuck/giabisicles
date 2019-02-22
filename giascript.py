@@ -43,13 +43,38 @@ class TopgFluxBase(object):
     implementing the GIA, which need to be provided via, at least, initialize
     (for method-specific initialization) and _update_Udot, which performs the
     GIA.
-
-
+    
+    Parameters
+    ----------
+    xg, yg  :   1D ndarrays representing x- and y-coordinates (in m) of domain.
+    drctry  :   The directory of the BISICLES run plot files
+    pbasename:  
+    tmax    :   The maximum time of simulation (used to load plot files)
+    dt      :   The time step of the coupling.
+    ekwargs :   a dict of earth rheology parameters. 
+        Accepted keys:  u (viscosity, single vinscoust halfspace)
+                        u1, u2, h (h thick layer with u2, over u1 halfspace)
+                        g (gravity, defualt 9.8)
+                        rho_r (density of mantle rock, default 3313)
+                        lam, mu (first and second lame parameters of crust)
+                        D (flexural rigidity of lithosphere)
+    U0      :   2D ndarray with size (len(xg), len(yg)) of disequilbrium uplift
+        at simulation start (default None, begins in equilbrium)
+    driver  :   BISICLES driver, needed for flattening AMR data
+    rate    :   Return uplift velocity (deprecated)
+    fixeddt :   Whether dt is fixed in simulation (default: True, untested)
+    read    :   BISICLES read function, either 'amrread' from amrfile library
+        or 'flatten_and_read' to use filetools library (required driver set)
+    skip    :   Fixed dt time steps to skip between velocity updates (default 1)
+    fac     :   Pad the FFT of load and response by this many times (default 1,
+        suggested 2).
+    nwrite  :   Write the uplift field every nwrite steps.
+    include_elastic :   Include elastic effects.
 
     """
     def __init__(self, xg, yg, drctry, pbasename, gbasename, tmax, dt, ekwargs,
                     U0=None, driver=None, rate=False, fixeddt=True,
-                    read='amrread', skip=1, fac=1, nwrite=10,
+                    read='amrread', skip=1, fac=2, nwrite=10,
                     include_elastic=False):
         # Grid and FFT properties
         self.xg = xg
@@ -69,7 +94,8 @@ class TopgFluxBase(object):
         self.u2 =    ekwargs.get('u2', None)            # Pa s
         self.h =     ekwargs.get('h', None)             # m
         self.g =     ekwargs.get('g', 9.8)              # m / s
-        self.rho_r = ekwargs.get('rho', 3313)           # kg m^-3
+        self.rho_r = ekwargs.get('rho_r', 3313)         # kg m^-3
+        self.rho_i = ekwargs.get('rho_i', 1000)         # kg m^-3
         self.mu =    ekwargs.get('mu', 26.6)*1e9        # Pa
         self.lam =   ekwargs.get('lam', 34.2666)*1e9    # Pa
         self.D =     ekwargs.get('D', 1e23)             # N m
@@ -265,6 +291,11 @@ class BuelerTopgFlux(TopgFluxBase):
 
     
     def _Udot_from_dLhat(self, dLhat):
+        """Update the velocity field from the stress field dLhat.
+
+        NOTE: dLhat should be the stress associated with the thickness above
+        flotation of the ice, TAF. dLhat = FFT(TAF*den_ice*g)
+        """
         # Bueler, et al. 2007 eq 11
         Uhatdot = -self.gamma*(dLhat + self.beta*self.Uhatn)*_SECSPERYEAR    # m / yr
         # Update uplift field prior to including elastic effect, so that fluid
