@@ -409,6 +409,8 @@ if __name__ == '__main__':
     test = sys.argv[1]
     Nx, Ny = int(sys.argv[2]), int(sys.argv[3])
     xi, yj = np.meshgrid(np.arange(Nx), np.arange(Ny))
+    
+    # Generate the heaviside load (applied at t=0)
     load = np.zeros((Ny, Nx))
     if test == 'periodic':
         fx, fy = float(sys.argv[4]), float(sys.argv[5])
@@ -420,5 +422,6 @@ if __name__ == '__main__':
     # Make the flux object
     buelerflux = BuelerTopgFlux(np.linspace(0,128000,Nx), np.linspace(0,128000,Ny), './', 'blah', 'blah', TMAX, 1., {},fac=1)       
     for i in range(TMAX):
+        # The load is heaviside, so it doesn't change step to step, but the uplift field keeps updating.
         buelerflux._Udot_from_dLhat(buelerflux.fft2andpad(load))
         np.savetxt("{0}test_t{1:d}.txt".format(test,i), buelerflux.ifft2andcrop(buelerflux.Uhatn))
