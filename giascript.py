@@ -56,6 +56,7 @@ class TopgFluxBase(object):
                         u1, u2, h (h thick layer with u2, over u1 halfspace)
                         g (gravity, defualt 9.8)
                         rho_r (density of mantle rock, default 3313)
+                        rho_i (density of ice, default 910)
                         lam, mu (first and second lame parameters of crust)
                         D (flexural rigidity of lithosphere)
     U0      :   2D ndarray with size (len(xg), len(yg)) of disequilbrium uplift
@@ -95,7 +96,8 @@ class TopgFluxBase(object):
         self.h =     ekwargs.get('h', None)             # m
         self.g =     ekwargs.get('g', 9.8)              # m / s
         self.rho_r = ekwargs.get('rho_r', 3313)         # kg m^-3
-        self.rho_i = ekwargs.get('rho_i', 1000)         # kg m^-3
+        self.rho_i = ekwargs.get('rho_i', 910)          # kg m^-3
+        self.rho_w = ekwargs.get('rho_w', 1028)         # kg m^-3
         self.mu =    ekwargs.get('mu', 26.6)*1e9        # Pa
         self.lam =   ekwargs.get('lam', 34.2666)*1e9    # Pa
         self.D =     ekwargs.get('D', 1e23)             # N m
@@ -277,7 +279,7 @@ class BuelerTopgFlux(TopgFluxBase):
 
         thkn, basn = self.read(self.pfname.format(n))
         dLhat = (self.fft2andpad(thickness_above_floating(thkn,basn)) -
-                                                    self.taf0hat)*1000*self.g
+                                                    self.taf0hat)*self.rho_i*self.g
 
         self._Udot_from_dLhat(dLhat)
 
@@ -291,7 +293,7 @@ class BuelerTopgFlux(TopgFluxBase):
 
     
     def _Udot_from_dLhat(self, dLhat):
-        """Update the velocity field from the stress field dLhat.
+        """Update the velocity field from the stress field dLhat (Pa).
 
         NOTE: dLhat should be the stress associated with the thickness above
         flotation of the ice, TAF. dLhat = FFT(TAF*den_ice*g)
