@@ -1,14 +1,24 @@
+#ifdef CH_LANG_CC
+/*
+ *      _______              __
+ *     / ___/ /  ___  __ _  / /  ___
+ *    / /__/ _ \/ _ \/  V \/ _ \/ _ \
+ *    \___/_//_/\___/_/_/_/_.__/\___/
+ *    Please refer to Copyright.txt, in Chombo's root directory.
+ */
+#endif
 
 #ifndef _BUELERGIA_H_
 #define _BUELERGIA_H_
 #include "SurfaceFlux.H"
+#include <fftw3.h>
 
 #include "NamespaceHeader.H"
 
 class BuelerGIAFlux : public SurfaceFlux
 {
 public:
-  BuelerGIAFlux( );
+  BuelerGIAFlux();
   virtual ~BuelerGIAFlux();
  
 
@@ -18,7 +28,7 @@ public:
   virtual SurfaceFlux* new_surfaceFlux();
 
   virtual void surfaceThicknessFlux(LevelData<FArrayBox>& a_flux,
-  			    const AmrIceBase& a_amrIce, 
+  			    AmrIceBase& a_amrIce, 
   			    int a_level, Real a_dt);
   // Set 1-layer viscosity
   void setViscosity( Real& a_visc );
@@ -26,9 +36,13 @@ public:
   //void setViscosity( RealVect a_viscvec, Real& a_thk );
   // Set N-layer viscosity (N>2)
   //void setViscosity( RealVect a_viscvec, RealVect a_thkvec ); 
+  // Set the flexural rigidity (N m) of the lithosphere.
   void setFlexural( Real& a_flex );
-  void setTimestep( Real a_dt );
+  // Set the timestep of the GIA iteration
+  void setTimestep( Real& a_dt );
+  // Set domain size characteristics
   void setDomain( int a_Nx, int a_Ny, Real a_Lx, Real a_Ly );
+  // Compute and store values for GIA steps 
   void precomputeGIAstep();
 protected:
   const Real PI2=2.*3.14159267;
@@ -58,11 +72,11 @@ protected:
 protected:
   // Check if a velocity field update is necessary.
   bool updateCheck( Real t );
-  void updateUdot( RealVect Hab );
+  void updateUdot( AmrIceBase& a_amrIce );
   void fftpadfor();
   void fftinv();
   
-}
+};
 
 #include "NamespaceFooter.H"
 #endif

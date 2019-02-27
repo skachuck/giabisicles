@@ -1,3 +1,13 @@
+#ifdef CH_LANG_CC
+/*
+ *      _______              __
+ *     / ___/ /  ___  __ _  / /  ___
+ *    / /__/ _ \/ _ \/  V \/ _ \/ _ \
+ *    \___/_//_/\___/_/_/_/_.__/\___/
+ *    Please refer to Copyright.txt, in Chombo's root directory.
+ */
+#endif
+
 /* c++ implementation of Bueler et al, 2007 GIA model
  * Author: Samuel B. Kachuck
  * Date: Jan 19, 2019
@@ -5,14 +15,14 @@
  * Status: still very much in progress.
  */
 
-#include <iostream>
-#include <cmath>
-#include <fstream>
-#include <fftw3.h>
-
-#include "BisiclesF_F.H"
+//#include <iostream>
+//#include <cmath>
+//#include <fstream>
 #include "BuelerGIA.H"
+#include <fftw3.h>
+#include "BisiclesF_F.H"
 #include "AmrIce.H"
+#include "FillFromReference.H"
 
 
 #include "NamespaceHeader.H"
@@ -52,25 +62,48 @@
  */
 
 
-
+BuelerGIAFlux::BuelerGIAFlux()
+  : m_Nx(0), m_Ny(0), m_Lx(0), m_Ly(0), m_isDomainSet(false), m_visc(1e21), m_flex(1e23), m_dt(1.), m_updatedTime(0.)
+{
+}
 
 /// factory method
 /** return a pointerto a new SurfaceFlux object
  */
 SurfaceFlux* 
-BuelerGIAFluxFlux::new_surfaceFlux()
+BuelerGIAFlux::new_surfaceFlux()
 {
   BuelerGIAFlux* newPtr = new BuelerGIAFlux;
 
   // NEEDS TO BE IMPLEMENTED
+  newPtr->m_Nx          = m_Nx; 
+  newPtr->m_Ny          = m_Ny;
+  newPtr->m_Lx          = m_Lx;
+  newPtr->m_Ly          = m_Ly;
+  newPtr->m_isDomainSet = m_isDomainSet;
+  newPtr->m_visc        = m_visc;
+  newPtr->m_flex        = m_flex;
+  newPtr->m_dt          = m_dt;
+  newPtr->m_updatedTime = m_updatedTime;
+  newPtr->fftfor_load   = fftfor_load;
+  newPtr->fftinv_udot   = fftinv_udot;
+
+  newPtr->m_beta        = m_beta;
+  newPtr->m_gamma       = m_gamma;
+  newPtr->m_taf         = m_taf;
+  newPtr->m_tafhat      = m_tafhat;
+  newPtr->m_udot        = m_udot;
+  newPtr->m_udothat     = m_udothat;
+  newPtr->m_uhat        = m_uhat;
+  newPtr->m_tafhat0     = m_tafhat0;
 
   return static_cast<SurfaceFlux*>(newPtr);
 }
 
-BuelerTopgFlux::~BuelerTopgFlux() {
+BuelerGIAFlux::~BuelerGIAFlux() {
   fftw_destroy_plan(fftfor_load);
   fftw_destroy_plan(fftinv_udot);
-  fftw_destroy_plan(fftinv_u);
+//  fftw_destroy_plan(fftinv_u);
 }
 
 void
@@ -86,29 +119,29 @@ void
 BuelerGIAFlux::setViscosity( Real& a_visc ) {
   m_visc = a_visc;
 }
-void 
-BuelerGIAFlux::setViscosity( RealVect a_viscvec, Real& a_thk ) {
-  m_viscvec = a_viscvec;
-  m_thk = a_thk;
-}
-
-void 
-BuelerGIAFlux::setViscosity( RealVect a_viscvec, RealVect a_thkvec ) {
-}
-
+//void 
+//BuelerGIAFlux::setViscosity( RealVect a_viscvec, Real& a_thk ) {
+//  m_viscvec = a_viscvec;
+//  m_thk = a_thk;
+//}
+//
+//void 
+//BuelerGIAFlux::setViscosity( RealVect a_viscvec, RealVect a_thkvec ) {
+//}
+//
 void
-BuelerGIAFlux::setFlexural( Real a_flex ){
+BuelerGIAFlux::setFlexural( Real& a_flex ){
   m_flex = a_flex;
 }
 
 void
-BuelerGIAFlux::setTimestep( Real a_dt ){
+BuelerGIAFlux::setTimestep( Real& a_dt ){
   m_dt = a_dt;
 }
 
 void 
 BuelerGIAFlux::surfaceThicknessFlux(LevelData<FArrayBox>& a_flux,
-                                  const AmrIceBase& a_amrIce, 
+                                  AmrIceBase& a_amrIce, 
                                   int a_level, Real a_dt)
 {
   // Get time and check if need to update
@@ -121,10 +154,11 @@ BuelerGIAFlux::surfaceThicknessFlux(LevelData<FArrayBox>& a_flux,
     m_updatedTime = time; 
   }
   RealVect dx = a_amrIce.dx(a_level);
+  RealVect m_inputFluxDx = a_amrIce.dx(0);
   FillFromReference(a_flux,
-                    *m_udot,
+                    m_udot,
                     dx, m_inputFluxDx,
-                    m_verbose);
+                    true);
 
   // Using FillFromReference instead of below.
   //// Fill in flux
@@ -145,18 +179,10 @@ BuelerGIAFlux::surfaceThicknessFlux(LevelData<FArrayBox>& a_flux,
 
 void
 BuelerGIAFlux::precomputeGIAstep() {
-  // We use real-to-real (discrete hartley) transformations.
-  // Note: FFTW in column-major order by swapping order of Nx, Ny. 
-  // Note: Inverse fft needs to be normalized by N.
-  fftfor_load = fftw_plan_r2r_2d(Ny, Nx, &m_taf[0][0], &m_tafhat[0][0], 
-                                  FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
-  fftinv_udot = fftw_plan_r2r_2d(Ny, Nx, &m_uhatdot[0][0], &m_uhat[0][0], 
-                                  FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
-  //fftinv_u = fftw_plan_r2r_2d(Ny, Nx, &m_uhat[0][0], &m_u[0][0], 
-  //                                          FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
+
 
   IntVect loVect = IntVect::Zero;
-  IntVect hiVect(Nx-1, Ny-1);
+  IntVect hiVect(m_Nx-1, m_Ny-1);
   Box domBox(loVect, hiVect);
   Vector<Box> thisVectBox(1);
   thisVectBox[0] = domBox;
@@ -164,18 +190,30 @@ BuelerGIAFlux::precomputeGIAstep() {
   DisjointBoxLayout dbl(thisVectBox, procAssign);
 
   // Resize the arrays
-  m_beta.resize(dbl,1);
-  m_gamma.resize(dbl,1);
-  m_tafhat0.resize(dbl,1);        
-  m_taf.resize(dbl,1); 
-  m_tafhat.resize(dbl,1); 
-  m_udot.resize(dbl,1); 
-  m_udothat.resize(dbl,1); 
-  m_uhat.resize(dbl,1); 
+  m_beta.define(dbl,1);
+  m_gamma.define(dbl,1);
+  m_tafhat0.define(dbl,1);        
+  m_taf.define(dbl,1); 
+  m_tafhat.define(dbl,1); 
+  m_udot.define(dbl,1); 
+  m_udothat.define(dbl,1); 
+  m_uhat.define(dbl,1); 
+  //
+  // We use real-to-real (discrete hartley) transformations.
+  // Note: FFTW in column-major order by swapping order of Nx, Ny. 
+  // Note: Inverse fft needs to be normalized by N.
+  DataIterator dit = dbl.dataIterator();
+  dit.begin();
+  fftfor_load = fftw_plan_r2r_2d(m_Ny, m_Nx, m_taf[dit].dataPtr(), m_tafhat[dit].dataPtr(), 
+                                  FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
+  fftinv_udot = fftw_plan_r2r_2d(m_Ny, m_Nx, m_udothat[dit].dataPtr(), m_udot[dit].dataPtr(), 
+                                  FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
+  //fftinv_u = fftw_plan_r2r_2d(Ny, Nx, &m_uhat[0][0], &m_u[0][0], 
+  //                                          FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
 
   Real kx, ky, kij, tau, alpha_l;
 
-  DataIterator dit = dbl.dataIterator();
+  dit = dbl.dataIterator();
   for (dit.begin();dit.ok();++dit) {
     // grab this FAB
     FArrayBox& m_betaFAB = m_beta[dit];
@@ -188,8 +226,8 @@ BuelerGIAFlux::precomputeGIAstep() {
 
 //  for (int i=0;i<Nx;i++){
 //    for (int j=0;j<Ny;j++){
-      kx = PI2*min(iv[0],m_Nx-i)/m_Nx*(m_Nx-1)/m_Lx;
-      ky = PI2*min(iv[1],m_Ny-j)/m_Ny*(m_Nx-1)/m_Ly;
+      kx = PI2*min(iv[0],m_Nx-iv[0])/m_Nx*(m_Nx-1)/m_Lx;
+      ky = PI2*min(iv[1],m_Ny-iv[1])/m_Ny*(m_Nx-1)/m_Ly;
       kij = sqrt(pow(kx,2)+pow(ky,2));
       // The lithosphere filter.
       alpha_l = 1. + pow(kij,4)*m_flex/m_mantleDensity/m_gravity;
@@ -206,34 +244,34 @@ BuelerGIAFlux::precomputeGIAstep() {
   }
 }
 
-bool BuelerTopgFlux::updateCheck(Real time) {
+bool BuelerGIAFlux::updateCheck(Real time) {
   return time != m_updatedTime;
 }
 
 // The main physics are here. Right now set up to receive the loading stress
 // (in Pa), but probably should accept height above flotation, from BISICLES.
 void 
-BuelerTopgFlux::updateUdot( const AmrIceBase& a_amrIce ) {
+BuelerGIAFlux::updateUdot( AmrIceBase& a_amrIce ) {
   //extract height above flotation for each level,
   // flatten it to a single level and compute response.
-  int n = amrIce.finestLevel() + 1;
+  int n = a_amrIce.finestLevel() + 1;
   Vector<LevelData<FArrayBox>* > data(n);
   Vector<RealVect> amrDx(n);
    
   for (int lev=0; lev<n; lev++) {
     data[lev] = const_cast<LevelData<FArrayBox>* >(&(a_amrIce.geometry(lev)->getThicknessOverFlotation()));
-    amrDx[lev] = amrIce.dx(lev);
+    amrDx[lev] = a_amrIce.dx(lev);
   }
 
-  RealVect m_destDx = amrIce.dx(0)
+  RealVect m_destDx = a_amrIce.dx(0);
 
-  flattenCellData(m_taf, m_destDx,data,amrDx,m_verbose); 
+  flattenCellData(m_taf, m_destDx,data,amrDx,true); 
 
   // FFT forward transform the load
   fftpadfor();
   // Update transformed velocity and uplift fields using Bueler, et al. 2007, eq 11. 
   IntVect loVect = IntVect::Zero;
-  IntVect hiVect(Nx-1, Ny-1);
+  IntVect hiVect(m_Nx-1, m_Ny-1);
   Box domBox(loVect, hiVect);
   Vector<Box> thisVectBox(1);
   thisVectBox[0] = domBox;
@@ -246,7 +284,7 @@ BuelerTopgFlux::updateUdot( const AmrIceBase& a_amrIce ) {
     FArrayBox& m_betaFAB = m_beta[dit];
     FArrayBox& m_gammaFAB = m_gamma[dit];
 
-    FArrayBox& m_m_tafhatFAB = m_tafhat[dit];
+    FArrayBox& m_tafhatFAB = m_tafhat[dit];
     FArrayBox& m_udothatFAB = m_udothat[dit];
     FArrayBox& m_uhatFAB = m_uhat[dit];
 
@@ -254,9 +292,10 @@ BuelerTopgFlux::updateUdot( const AmrIceBase& a_amrIce ) {
     for (bit.begin(); bit.ok(); ++bit) {
       IntVect iv = bit();
       int comp = 0;
-      m_udothat(iv,comp) = -m_gamma(iv,comp)*((m_tafhat(iv,comp) - m_tafhat0)*m_iceDensity*m_gravity + 
-                                        m_beta(iv,comp)*m_uhat(iv,comp))*SECSPERYEAR;
-      m_uhat(iv,comp) += m_udothat(iv,comp)*m_dt;
+      // DON'T FORGET TO SUBTRACT INITIAL TAF EVENTUALLY!!!!!
+      m_udothatFAB(iv,comp) = -m_gammaFAB(iv,comp)*((m_tafhatFAB(iv,comp))*m_iceDensity*m_gravity + 
+                                        m_betaFAB(iv,comp)*m_uhatFAB(iv,comp))*SECSPERYEAR;
+      m_uhatFAB(iv,comp) += m_udothatFAB(iv,comp)*m_dt;
     }
   }
 
@@ -267,21 +306,36 @@ BuelerTopgFlux::updateUdot( const AmrIceBase& a_amrIce ) {
 // Forward transform the load
 // TODO Implement padding
 void 
-BuelerTopgFlux::fftpadfor () {
+BuelerGIAFlux::fftpadfor () {
   fftw_execute(fftfor_load);
 }
 
 // Inverse transform velocities and uplifts and normalize
 // TODO Implement padding
 void 
-BuelerTopgFlux::fftinv () {
+BuelerGIAFlux::fftinv () {
   fftw_execute(fftinv_udot);
-  fftw_execute(fftinv_u);
-  for (int i=0;i<m_Nx;i++) {
-    for (int j=0;j<m_Ny;j++) {
+
+  IntVect loVect = IntVect::Zero;
+  IntVect hiVect(m_Nx-1, m_Ny-1);
+  Box domBox(loVect, hiVect);
+  Vector<Box> thisVectBox(1);
+  thisVectBox[0] = domBox;
+  Vector<int> procAssign(1,0);
+  DisjointBoxLayout dbl(thisVectBox, procAssign);
+  DataIterator dit = dbl.dataIterator();
+
+  for (dit.begin();dit.ok();++dit) {
+    // grab this FAB
+    FArrayBox& m_udotFAB = m_udot[dit];
+
+    BoxIterator bit(m_udotFAB.box());
+    for (bit.begin(); bit.ok(); ++bit) {
+      IntVect iv = bit();
+      int comp = 0;
+
       // Normalization for inverse transform, see
-      m_udot[i][j] /= pow((m_Nx*m_Ny),1);
-      m_u[i][j] /= pow((m_Nx*m_Ny),1);
+      m_udotFAB(iv,comp) /= pow((m_Nx*m_Ny),1);
     }
   }
 }
@@ -337,7 +391,7 @@ BuelerTopgFlux::fftinv () {
 //      l=cosineLoad(Nx,Ny,fx,fy);
 //    }
 //  
-//    BuelerTopgFlux flux(Nx, Ny, 128000., 128000., 1., 1);
+//    BuelerGIAFlux flux(Nx, Ny, 128000., 128000., 1., 1);
 //    int t = 0;
 //    while (t<TMAX) {   
 //      flux.updateUdot(l);
