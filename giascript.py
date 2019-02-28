@@ -141,17 +141,12 @@ class TopgFluxBase(object):
         self.skip = skip
         self.include_elastic = include_elastic
 
-        # Restart values
-        if U0 is not None:      # Set disequilibrium uplift at t=0
-            self.Uhatn = self.fft2andpad(U0)
-        if taf0 is not None:    # Set initial (compensated) load at t=0
-            self.taf0hat = self.fft2andpad(taf0)
-
         # Miscellanious properties
         self.drctry = drctry
         self.gfname = self.drctry+gbasename
         self.pfname = self.drctry+pbasename
         self.U0 = U0
+        self.taf0 = taf0
         self.DRIVER = driver
         self.rate = rate
         self.nwrite = nwrite
@@ -259,10 +254,17 @@ class BuelerTopgFlux(TopgFluxBase):
         nx, ny = self.nx, self.ny
 
         # Initialize fields in memory
-        # We save the initial thickness to find the excess load in future.
-        self.taf0hat = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)
-        self.dLhat = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)
-        self.Uhatn = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)
+        # Restart values
+        if self.U0 is not None:      # Set disequilibrium uplift at t=0
+            self.Uhatn = self.fft2andpad(self.U0)
+        else:
+            self.Uhatn = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)    
+        if self.taf0 is not None:    # Set initial (compensated) load at t=0
+            self.taf0hat = self.fft2andpad(self.taf0)
+        else:
+            self.taf0hat = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)
+
+        self.dLhat = np.zeros((ny*self.fac,nx*self.fac), dtype=np.complex128)    
         self.Udot = np.zeros((ny,nx))
         self.interper = RectBivariateSpline(self.xg, self.yg, self.Udot.T)
 
@@ -425,13 +427,29 @@ if __name__ == '__main__':
         if test == 'periodic':
             fx, fy = float(sys.argv[4]), float(sys.argv[5])
             load = np.cos(xi*fx*2*np.pi/Nx)*np.cos(yj*fy*2*np.pi/Ny)
-        elif test == 'square':
+        elif test in ['square', 'restart']:
             load[(xi/Nx > 0.333)*(xi/Nx < 0.666)*(yj/Ny > 0.333) *(yj/Ny<0.666)] = 1.
         else:
             raise ValueError('test style not understood')
         # Make the flux object
         buelerflux = BuelerTopgFlux(np.linspace(0,128000,Nx), np.linspace(0,128000,Ny), './', 'blah', 'blah', TMAX, 1., {},fac=1)       
-        for i in range(TMAX):
-            # The load is heaviside, so it doesn't change step to step, but the uplift field keeps updating.
+        if test in ['periodic', 'square']:
+            for i in range(TMAX):
+                # The load is heaviside, so it doesn't change step to step, but the uplift field keeps updating.
+                buelerflux._Udot_from_dLhat(buelerflux.fft2andpad(load))
+                np.savetxt("{0}test_t{1:d}.txt".format(test,i), buelerflux.ifft2andcrop(buelerflux.Uhatn))
+        elif test in ['restart']:
             buelerflux._Udot_from_dLhat(buelerflux.fft2andpad(load))
-            np.savetxt("{0}test_t{1:d}.txt".format(test,i), buelerflux.ifft2andcrop(buelerflux.Uhatn))
+            buelerrestart = buelerflux = BuelerTopgFlux(np.linspace(0,128000,Nx), np.linspace(0,128000,Ny), 
+                                                                './', 'blah',
+                                                                'blah', TMAX,
+                                                                1., {},fac=1,
+                                                                U0=buelerflux.ifft2andcrop(buelerflux.Uhatn),
+                                                                taf0=load)
+            buelerflux._Udot_from_dLhat(buelerflux.fft2andpad(load))
+            buelerrestart._Udot_from_dLhat(buelerflux.fft2andpad(load))
+            if np.allclose(buelerflux.Uhatn, buelerrestart.Uhatn):
+                print('Restart test success')
+            else:
+                print('Restart test fail')
+
