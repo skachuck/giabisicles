@@ -23,6 +23,7 @@
 #include "BisiclesF_F.H"
 #include "AmrIce.H"
 #include "FillFromReference.H"
+#include "RefCountedPtr.H"
 
 
 #include "NamespaceHeader.H"
@@ -97,6 +98,15 @@ BuelerGIAFlux::new_surfaceFlux()
   newPtr->m_uhat        = m_uhat;
   newPtr->m_tafhat0     = m_tafhat0;
 
+//  m_beta.copyTo(newPtr->m_beta);
+//  m_gamma.copyTo(newPtr->m_gamma);
+//  m_taf.copyTo(newPtr->m_taf);
+//  m_tafhat.copyTo(newPtr->m_tafhat);
+//  m_udot.copyTo(newPtr->m_udot);
+//  m_udothat.copyTo(newPtr->m_udothat);
+//  m_uhat.copyTo(newPtr->m_uhat);
+//  m_tafhat0.copyTo(newPtr->m_tafhat0);
+
   return static_cast<SurfaceFlux*>(newPtr);
 }
 
@@ -156,7 +166,7 @@ BuelerGIAFlux::surfaceThicknessFlux(LevelData<FArrayBox>& a_flux,
   RealVect dx = a_amrIce.dx(a_level);
   RealVect m_inputFluxDx = a_amrIce.dx(0);
   FillFromReference(a_flux,
-                    m_udot,
+                    *m_udot,
                     dx, m_inputFluxDx,
                     true);
 
@@ -190,23 +200,23 @@ BuelerGIAFlux::precomputeGIAstep() {
   DisjointBoxLayout dbl(thisVectBox, procAssign);
 
   // Resize the arrays
-  m_beta.define(dbl,1);
-  m_gamma.define(dbl,1);
-  m_tafhat0.define(dbl,1);        
-  m_taf.define(dbl,1); 
-  m_tafhat.define(dbl,1); 
-  m_udot.define(dbl,1); 
-  m_udothat.define(dbl,1); 
-  m_uhat.define(dbl,1); 
+  (*m_beta).define(dbl,1);
+  (*m_gamma).define(dbl,1);
+  (*m_tafhat0).define(dbl,1);        
+  (*m_taf).define(dbl,1); 
+  (*m_tafhat).define(dbl,1); 
+  (*m_udot).define(dbl,1); 
+  (*m_udothat).define(dbl,1); 
+  (*m_uhat).define(dbl,1); 
   //
   // We use real-to-real (discrete hartley) transformations.
   // Note: FFTW in column-major order by swapping order of Nx, Ny. 
   // Note: Inverse fft needs to be normalized by N.
   DataIterator dit = dbl.dataIterator();
   dit.begin();
-  fftfor_load = fftw_plan_r2r_2d(m_Ny, m_Nx, m_taf[dit].dataPtr(), m_tafhat[dit].dataPtr(), 
+  fftfor_load = fftw_plan_r2r_2d(m_Ny, m_Nx, (*m_taf)[dit].dataPtr(), (*m_tafhat)[dit].dataPtr(), 
                                   FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
-  fftinv_udot = fftw_plan_r2r_2d(m_Ny, m_Nx, m_udothat[dit].dataPtr(), m_udot[dit].dataPtr(), 
+  fftinv_udot = fftw_plan_r2r_2d(m_Ny, m_Nx, (*m_udothat)[dit].dataPtr(), (*m_udot)[dit].dataPtr(), 
                                   FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
   //fftinv_u = fftw_plan_r2r_2d(Ny, Nx, &m_uhat[0][0], &m_u[0][0], 
   //                                          FFTW_DHT, FFTW_DHT, FFTW_ESTIMATE);
@@ -216,8 +226,8 @@ BuelerGIAFlux::precomputeGIAstep() {
   dit = dbl.dataIterator();
   for (dit.begin();dit.ok();++dit) {
     // grab this FAB
-    FArrayBox& m_betaFAB = m_beta[dit];
-    FArrayBox& m_gammaFAB = m_gamma[dit];
+    FArrayBox& m_betaFAB = (*m_beta)[dit];
+    FArrayBox& m_gammaFAB = (*m_gamma)[dit];
 
     BoxIterator bit(m_betaFAB.box());
     for (bit.begin(); bit.ok(); ++bit) {
@@ -251,7 +261,7 @@ bool BuelerGIAFlux::updateCheck(Real time) {
 // The main physics are here. Right now set up to receive the loading stress
 // (in Pa), but probably should accept height above flotation, from BISICLES.
 void 
-BuelerGIAFlux::updateUdot( AmrIceBase& a_amrIce ) {
+BuelerGIAFlux::updateUdot( const AmrIceBase& a_amrIce ) {
   //extract height above flotation for each level,
   // flatten it to a single level and compute response.
   int n = a_amrIce.finestLevel() + 1;
@@ -265,7 +275,7 @@ BuelerGIAFlux::updateUdot( AmrIceBase& a_amrIce ) {
 
   RealVect m_destDx = a_amrIce.dx(0);
 
-  flattenCellData(m_taf, m_destDx,data,amrDx,true); 
+  flattenCellData(*m_taf, m_destDx,data,amrDx,true); 
 
   // FFT forward transform the load
   fftpadfor();
@@ -281,12 +291,12 @@ BuelerGIAFlux::updateUdot( AmrIceBase& a_amrIce ) {
 
   for (dit.begin();dit.ok();++dit) {
     // grab this FAB
-    FArrayBox& m_betaFAB = m_beta[dit];
-    FArrayBox& m_gammaFAB = m_gamma[dit];
+    FArrayBox& m_betaFAB = (*m_beta)[dit];
+    FArrayBox& m_gammaFAB = (*m_gamma)[dit];
 
-    FArrayBox& m_tafhatFAB = m_tafhat[dit];
-    FArrayBox& m_udothatFAB = m_udothat[dit];
-    FArrayBox& m_uhatFAB = m_uhat[dit];
+    FArrayBox& m_tafhatFAB = (*m_tafhat)[dit];
+    FArrayBox& m_udothatFAB = (*m_udothat)[dit];
+    FArrayBox& m_uhatFAB = (*m_uhat)[dit];
 
     BoxIterator bit(m_betaFAB.box());
     for (bit.begin(); bit.ok(); ++bit) {
@@ -327,7 +337,7 @@ BuelerGIAFlux::fftinv () {
 
   for (dit.begin();dit.ok();++dit) {
     // grab this FAB
-    FArrayBox& m_udotFAB = m_udot[dit];
+    FArrayBox& m_udotFAB = (*m_udot)[dit];
 
     BoxIterator bit(m_udotFAB.box());
     for (bit.begin(); bit.ok(); ++bit) {
