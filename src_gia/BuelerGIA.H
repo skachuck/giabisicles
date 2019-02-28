@@ -28,8 +28,8 @@ public:
   virtual SurfaceFlux* new_surfaceFlux();
 
   virtual void surfaceThicknessFlux(LevelData<FArrayBox>& a_flux,
-  			    AmrIceBase& a_amrIce, 
-  			    int a_level, Real a_dt);
+				    const AmrIceBase& a_amrIce, 
+				    int a_level, Real a_dt);
   // Set 1-layer viscosity
   void setViscosity( Real& a_visc );
   // Set 2-layer viscosity

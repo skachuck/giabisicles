@@ -63,7 +63,7 @@
 
 
 BuelerGIAFlux::BuelerGIAFlux()
-  : m_Nx(0), m_Ny(0), m_Lx(0), m_Ly(0), m_isDomainSet(false), m_visc(1e21), m_flex(1e23), m_dt(1.), m_updatedTime(0.)
+  : m_flex(1e23), m_visc(1e21), m_dt(1.), m_Nx(0), m_Ny(0), m_Lx(0), m_Ly(0), m_isDomainSet(false), m_updatedTime(0.)
 {
 }
 
@@ -141,8 +141,8 @@ BuelerGIAFlux::setTimestep( Real& a_dt ){
 
 void 
 BuelerGIAFlux::surfaceThicknessFlux(LevelData<FArrayBox>& a_flux,
-                                  AmrIceBase& a_amrIce, 
-                                  int a_level, Real a_dt)
+				    const AmrIceBase& a_amrIce, 
+				    int a_level, Real a_dt)
 {
   // Get time and check if need to update
   Real time = a_amrIce.time();
