@@ -19,7 +19,8 @@
 class BuelerGIAFlux : public SurfaceFlux
 {
 public:
-  BuelerGIAFlux();
+  BuelerGIAFlux( Real a_iceDensity, Real a_mantleDensity, Real a_gravity );
+
   virtual ~BuelerGIAFlux();
  
 

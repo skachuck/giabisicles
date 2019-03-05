@@ -13,6 +13,7 @@
 #include "LevelDataSurfaceFlux.H"
 #include "GroundingLineLocalizedFlux.H"
 #include "HotspotFlux.H"
+#include "BuelerGIA.H"
 #include <map>
 #ifdef HAVE_PYTHON
 #include "PythonInterface.H"
@@ -952,28 +953,25 @@ SurfaceFlux* SurfaceFlux::parse(const char* a_prefix)
 
     }
   else if (type == "buelerGIA") {
-
-    BuelerGIAFlux* buelerGIAFluxPtr = new BuelerGIAFlux;
-
     int nlayers;
     pp.get("nlayers", nlayers);
+    Real visc;
     // Interpret the number of layers and type the properties accordingly.
-    if ( nlayres == 1) {
-      Real visc;
+    if ( nlayers == 1) {
       pp.get("visc", visc);
     }
-    else if ( nlayers == 2 ) {
-      Vector<Real> visc(2);
-      pp.getarr("visc",visc,0,nlayers);
-      Real thk;
-      pp.get("thk",thk);
-    }
-    else if ( nlayers>2 ) {
-      Vector<Real> visc(nlayers); 
-      pp.getarr("visc",visc,0,nlayers);
-      Vector<Real> thk(nlayers-1);
-      pp.getarr("thk",thk,0,nlayers-1);
-    }
+    //else if ( nlayers == 2 ) {
+    //  Vector<Real> visc(2);
+    //  pp.getarr("visc",visc,0,nlayers);
+    //  Real thk;
+    //  pp.get("thk",thk);
+    //}
+    //else if ( nlayers>2 ) {
+    //  Vector<Real> visc(nlayers); 
+    //  pp.getarr("visc",visc,0,nlayers);
+    //  Vector<Real> thk(nlayers-1);
+    //  pp.getarr("thk",thk,0,nlayers-1);
+    //}
     else { 
       MayDay::Error("Bueler flux nlayers not understood.");
     }
@@ -1003,13 +1001,14 @@ SurfaceFlux* SurfaceFlux::parse(const char* a_prefix)
     Lx = domsize[0];
     Ly = domsize[1];
 
-    BuelerGIA::BuelerGIAFlux buelerFlux();
+    BuelerGIAFlux* buelerFlux = new BuelerGIAFlux(m_iceDensity, m_mantleDensity, m_gravity);
+    //BuelerGIAFlux buelerFlux(0);
     buelerFlux->setDomain(Nx, Ny, Lx, Ly);
     buelerFlux->setViscosity(visc);
     buelerFlux->setFlexural(flex);
-    buelerFlux->setTimeStep(dt);
+    buelerFlux->setTimestep(dt);
     buelerFlux->precomputeGIAstep();
-    ptr = static_cast<SurfaceFlux*>(buelerFlux.new_surfaceFlux());
+    ptr = static_cast<SurfaceFlux*>(buelerFlux->new_surfaceFlux());
 
   }
 #ifdef HAVE_PYTHON

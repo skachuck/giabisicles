@@ -63,8 +63,9 @@
  */
 
 
-BuelerGIAFlux::BuelerGIAFlux()
-  : m_flex(1e23), m_visc(1e21), m_dt(1.), m_Nx(0), m_Ny(0), m_Lx(0), m_Ly(0), m_isDomainSet(false), m_updatedTime(0.)
+BuelerGIAFlux::BuelerGIAFlux( Real a_iceDensity, Real a_mantleDensity, Real a_gravity)
+  : m_flex(1e23), m_visc(1e21), m_dt(1.), m_Nx(0), m_Ny(0), m_Lx(0), m_Ly(0), m_isDomainSet(false), m_updatedTime(0.),
+    m_iceDensity(a_iceDensity), m_mantleDensity(a_mantleDensity), m_gravity(a_gravity)
 {
 }
 
@@ -74,7 +75,7 @@ BuelerGIAFlux::BuelerGIAFlux()
 SurfaceFlux* 
 BuelerGIAFlux::new_surfaceFlux()
 {
-  BuelerGIAFlux* newPtr = new BuelerGIAFlux;
+  BuelerGIAFlux* newPtr = new BuelerGIAFlux(m_iceDensity, m_mantleDensity, m_gravity);
 
   // NEEDS TO BE IMPLEMENTED
   newPtr->m_Nx          = m_Nx; 
@@ -207,7 +208,20 @@ BuelerGIAFlux::precomputeGIAstep() {
   (*m_tafhat).define(dbl,1); 
   (*m_udot).define(dbl,1); 
   (*m_udothat).define(dbl,1); 
-  (*m_uhat).define(dbl,1); 
+  (*m_uhat).define(dbl,1);   
+ 
+  DataIterator diter(dbl);
+  for (diter.begin();diter.ok();++diter)
+  {
+    (*m_beta)[diter].setVal(0);
+    (*m_gamma)[diter].setVal(0);
+    (*m_tafhat0)[diter].setVal(0);        
+    (*m_taf)[diter].setVal(0); 
+    (*m_tafhat)[diter].setVal(0); 
+    (*m_udot)[diter].setVal(0); 
+    (*m_udothat)[diter].setVal(0); 
+    (*m_uhat)[diter].setVal(0); 
+  }
   //
   // We use real-to-real (discrete hartley) transformations.
   // Note: FFTW in column-major order by swapping order of Nx, Ny. 
