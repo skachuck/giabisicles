@@ -126,7 +126,7 @@ class TopgFluxBase(object):
         # Lithospher filter
         self.alpha_l = 1 + self.k**4*self.D/self.g/self.rho_r
         # Relaxation time
-        self.taus = 2*self.u*self.k/self.g/self.rho_r/self.alpha_l  # s
+        self.taus = 2*self.u*self.k/self.g/self.rho_r/self.alpha_l*self.r  # s
         # Elastic halfspace response, Cathles (1975) III-46
         self.ue = -1/(2*self.k)*(1/self.mu + 1/(self.mu+self.lam))  # m/Pa
         self.ue[0,0] = 0
